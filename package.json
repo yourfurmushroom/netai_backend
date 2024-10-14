@@ -1,0 +1,13 @@
+{
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.3",
+    "websocket-ts": "^2.1.5",
+    "websockets": "^0.2.0"
+  },
+  "dependencies": {
+    "mysql": "^2.18.1",
+    "ws": "^8.18.0"
+  }
+}
