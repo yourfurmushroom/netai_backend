@@ -35,36 +35,35 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ReadData = ReadData;
-exports.ConnectionToServer = ConnectionToServer;
 const fs = __importStar(require("fs"));
-const ws_1 = __importDefault(require("ws"));
+const WebSocket = require("ws");
+const mysql_1 = __importDefault(require("mysql"));
 function ReadData(path) {
     const data = fs.readFileSync(path, 'utf-8');
     return data;
 }
 function ConnectionToServer(port) {
-    const wss = new ws_1.default.Server({ port: 8888 });
+    const wss = new WebSocket.Server({ port: 8888, host: "0.0.0.0" });
     console.log("server start on 8888");
     return wss;
 }
 class DataBase {
     constructor() {
-        const mysql = require("mysql");
         const db_option = {
             host: 'localhost',
             user: 'root',
             password: 'Jet..123@2024!',
             database: 'netai_data_scients',
         };
-        this.db = mysql.createConnection(db_option);
+        this.db = mysql_1.default.createConnection(db_option);
     }
     CheckConnection() {
         this.db.connect((err) => {
             if (err) {
-                throw err;
+                console.error('Database connection error:', err);
+                return;
             }
-            return "db connected";
+            console.log("Database connected");
         });
     }
     CheckUser(username, password) {
@@ -81,23 +80,81 @@ class DataBase {
             });
         });
     }
-    InsertData(question, response, uuid) {
-        this.db.query(`INSERT INTO questiontable VALUES("${uuid}",${question},"${response}",CURRENT_TIMESTAMP)`, (err, result) => {
-            if (err) {
-                throw err;
+    VerifyInDatabase(username) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.db.query('SELECT * FROM User WHERE userName = ?', [username], (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve(result.length === 1);
+                    }
+                });
+            });
+        });
+    }
+    InsertData(username, password) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const veryfied = yield this.VerifyInDatabase(username);
+            console.log(veryfied);
+            try {
+                if (!veryfied)
+                    this.db.query(`INSERT INTO User VALUES("${username}",${password})`, (err, result) => {
+                        if (err) {
+                            throw err;
+                        }
+                    });
+                return veryfied;
+            }
+            catch (_a) {
+                return false;
             }
         });
     }
 }
 function WssListener(wss, db) {
     return __awaiter(this, void 0, void 0, function* () {
-        wss.on('connection', (ws, req) => {
-            console.log('New client connected');
-            ws.send(JSON.stringify("asd"));
+        wss.on('connection', (ws) => {
+            console.log("connected");
             ws.on('message', (message) => {
+                let msg = JSON.parse(message);
+                try {
+                    if (msg['flag'] === 'Login') {
+                        console.log("asd");
+                        db.CheckUser(msg['username'], msg['password']).then((e) => {
+                            console.log(e);
+                            if (e)
+                                ws.send(JSON.stringify({ messageField: "True", detail: "login Successful" }));
+                            else
+                                ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }));
+                        });
+                    }
+                    else if (msg['flag'] === 'Register') {
+                        if (msg['password'] === msg['secondpassword']) {
+                            db.InsertData(msg['username'], msg['password']).then((e) => {
+                                if (e == false)
+                                    ws.send(JSON.stringify({ messageField: "True", detail: "register Successful" }));
+                                else
+                                    ws.send(JSON.stringify({ messageField: "False", detail: "username exist" }));
+                            });
+                        }
+                        else {
+                            ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }));
+                        }
+                    }
+                    else {
+                    }
+                }
+                catch (error) {
+                    console.log(error);
+                }
             });
             ws.on('close', () => {
-                ws.send(JSON.stringify("asd"));
+                console.log("asd");
+            });
+            ws.on('error', (error) => {
+                console.error(`WebSocket error: ${error.message}`);
             });
         });
     });
@@ -106,8 +163,8 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         let port = 8888;
         const wss = ConnectionToServer(port);
-        let db = new DataBase();
-        WssListener(wss, db);
+        let dataBase = new DataBase();
+        WssListener(wss, dataBase);
     });
 }
 main();

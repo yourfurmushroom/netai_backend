@@ -1,15 +1,15 @@
 import * as fs from 'fs';
-import WebSocket from 'ws';
+import WebSocket = require('ws')
+import mysql from 'mysql';
 
-
-export function ReadData(path: string): string {
+function ReadData(path: string): string {
   const data = fs.readFileSync(path, 'utf-8');
   return data;
 }
 
 
-export function ConnectionToServer(port: number): WebSocket.Server {
-  const wss = new WebSocket.Server({ port: 8888 });
+function ConnectionToServer(port: number): WebSocket.Server {
+  const wss = new WebSocket.Server({ port: 8888 ,host:"0.0.0.0"});
   console.log("server start on 8888");
   return wss;
 }
@@ -17,8 +17,8 @@ export function ConnectionToServer(port: number): WebSocket.Server {
 class DataBase {
   db: any;
 
+
   constructor() {
-    const mysql = require("mysql");
     const db_option = {
       host: 'localhost',
       user: 'root',
@@ -28,67 +28,131 @@ class DataBase {
 
     this.db = mysql.createConnection(db_option)
 
+
   }
 
+
+
   public CheckConnection(): any {
-    this.db.connect((err: Error) => {
+    this.db.connect((err: mysql.MysqlError | null) => {
       if (err) {
-        throw err;
+        console.error('Database connection error:', err);
+        return;
       }
-      return "db connected";
-    })
+      console.log("Database connected");
+    });
   }
 
   public async CheckUser(username: string, password: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
-        this.db.query(
-            'SELECT * FROM User WHERE userName = ? AND password = ?',
-            [username, password],
-            (err: Error, result: any) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(result.length === 1);
-                }
-            }
-        );
+      this.db.query(
+        'SELECT * FROM User WHERE userName = ? AND password = ?',
+        [username, password],
+        (err: Error, result: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result.length === 1);
+          }
+        }
+      );
     });
-}
+  }
 
-  public InsertData(question: string, response: string, uuid: string): void {
-    this.db.query(`INSERT INTO questiontable VALUES("${uuid}",${question},"${response}",CURRENT_TIMESTAMP)`, (err: Error, result: object) => {
-      if (err) {
-        throw err;
-      }
-    })
+  public async VerifyInDatabase(username: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      this.db.query(
+        'SELECT * FROM User WHERE userName = ?',
+        [username],
+        (err: Error, result: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(result.length === 1);
+          }
+        }
+      );
+    });
+  }
+
+  public async InsertData(username: string, password: string): Promise<boolean> {
+    const veryfied = await this.VerifyInDatabase(username)
+    console.log(veryfied)
+    try {
+      if (!veryfied)
+        this.db.query(`INSERT INTO User VALUES("${username}",${password})`, (err: Error, result: object) => {
+          if (err) {
+            throw err;
+          }
+        })
+      return veryfied
+
+    }
+    catch {
+      return false;
+    }
   }
 
 
 }
 
-async function WssListener(wss:WebSocket.Server,db:any)
-{
-  wss.on('connection', (ws: WebSocket,req:any) => {
-    console.log('New client connected');
-    ws.send(JSON.stringify("asd"));
+async function WssListener(wss: WebSocket.Server, db: any) {
+  wss.on('connection', (ws: WebSocket) => {
+
+    console.log("connected")
 
     ws.on('message', (message: string) => {
-      
+      let msg = JSON.parse(message)
+      try {
+        if (msg['flag'] === 'Login') {
+          console.log("asd")
+          db.CheckUser(msg['username'], msg['password']).then((e: boolean) => {
+            console.log(e)
+            if (e)
+              ws.send(JSON.stringify({ messageField: "True", detail: "login Successful" }))
+            else
+              ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }))
+          });
+
+        }
+        else if (msg['flag'] === 'Register') {
+          if (msg['password'] === msg['secondpassword']) {
+            db.InsertData(msg['username'], msg['password']).then((e: boolean) => {
+              if (e == false)
+                ws.send(JSON.stringify({ messageField: "True", detail: "register Successful" }))
+              else
+                ws.send(JSON.stringify({ messageField: "False", detail: "username exist" }))
+            })
+          }
+          else {
+            ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }))
+          }
+        }
+        else {
+
+        }
+      }
+      catch (error) {
+        console.log(error)
+      }
     });
 
     ws.on('close', () => {
-      ws.send(JSON.stringify("asd"))
+      console.log("asd")
     });
+
+    ws.on('error', (error) => {
+      console.error(`WebSocket error: ${error.message}`);
+    });
+
   });
 }
-async function main()
-{
-  let port=8888;
-  const wss=ConnectionToServer(port)
+async function main() {
+  let port = 8888;
+  const wss = ConnectionToServer(port)
+  let dataBase = new DataBase();
 
-  let db = new DataBase();
-  
-  WssListener(wss,db);
+  WssListener(wss, dataBase);
 }
 
 main();
