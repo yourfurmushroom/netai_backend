@@ -38,6 +38,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = __importStar(require("fs"));
 const WebSocket = require("ws");
 const mysql_1 = __importDefault(require("mysql"));
+const path_1 = __importDefault(require("path"));
 function ReadData(path) {
     const data = fs.readFileSync(path, 'utf-8');
     return data;
@@ -100,7 +101,7 @@ class DataBase {
             console.log(veryfied);
             try {
                 if (!veryfied)
-                    this.db.query(`INSERT INTO User VALUES("${username}",${password})`, (err, result) => {
+                    this.db.query(`INSERT INTO User VALUES("${username}","${password}")`, (err, result) => {
                         if (err) {
                             throw err;
                         }
@@ -117,45 +118,61 @@ function WssListener(wss, db) {
     return __awaiter(this, void 0, void 0, function* () {
         wss.on('connection', (ws) => {
             console.log("connected");
-            ws.on('message', (message) => {
-                let msg = JSON.parse(message);
-                try {
-                    if (msg['flag'] === 'Login') {
-                        console.log("asd");
-                        db.CheckUser(msg['username'], msg['password']).then((e) => {
-                            console.log(e);
-                            if (e)
-                                ws.send(JSON.stringify({ messageField: "True", detail: "login Successful" }));
-                            else
-                                ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }));
-                        });
-                    }
-                    else if (msg['flag'] === 'Register') {
-                        if (msg['password'] === msg['secondpassword']) {
-                            db.InsertData(msg['username'], msg['password']).then((e) => {
-                                if (e == false)
-                                    ws.send(JSON.stringify({ messageField: "True", detail: "register Successful" }));
+            try {
+                ws.on('message', (message) => {
+                    let msg = JSON.parse(message);
+                    try {
+                        if (msg['flag'] === 'Login') {
+                            console.log("asd");
+                            db.CheckUser(msg['username'], msg['password']).then((e) => {
+                                console.log(e);
+                                if (e)
+                                    ws.send(JSON.stringify({ messageField: "True", detail: "login Successful" }));
                                 else
-                                    ws.send(JSON.stringify({ messageField: "False", detail: "username exist" }));
+                                    ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }));
+                            });
+                        }
+                        else if (msg['flag'] === 'Register') {
+                            if (msg['password'] === msg['secondpassword']) {
+                                db.InsertData(msg['username'], msg['password']).then((e) => {
+                                    if (e == false)
+                                        ws.send(JSON.stringify({ messageField: "True", detail: "register Successful" }));
+                                    else
+                                        ws.send(JSON.stringify({ messageField: "False", detail: "username exist" }));
+                                });
+                            }
+                            else {
+                                ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }));
+                            }
+                        }
+                        else if (msg['flag'] === 'Upload') {
+                            const filePath = path_1.default.join(__dirname, '../studentItems', `file_${Date.now()}_${msg['filename']}`);
+                            fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
+                                if (err) {
+                                    console.error('文件保存失敗', err);
+                                    ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }));
+                                }
+                                else {
+                                    console.log('文件已保存:', filePath);
+                                    ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
+                                }
                             });
                         }
                         else {
-                            ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }));
                         }
                     }
-                    else {
+                    catch (error) {
+                        console.log(error);
                     }
-                }
-                catch (error) {
-                    console.log(error);
-                }
-            });
-            ws.on('close', () => {
-                console.log("asd");
-            });
-            ws.on('error', (error) => {
-                console.error(`WebSocket error: ${error.message}`);
-            });
+                });
+                ws.on('close', () => {
+                });
+                ws.on('error', (error) => {
+                    console.error(`WebSocket error: ${error.message}`);
+                });
+            }
+            catch (_a) {
+            }
         });
     });
 }
