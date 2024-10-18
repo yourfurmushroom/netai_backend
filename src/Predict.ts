@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { parse } from 'csv-parse';
 import path from 'path';
+const { exec } = require('child_process');
 
 interface dataset {
     name: string;
@@ -10,9 +11,14 @@ interface dataset {
 }
 
 const RootPath = "/var/www/server/netai_backend/netai_backend/predictData"
-const PredictDataPath: dataset[] = []
+const PredictDataPath: dataset[] = [];
 
-export default function PredictFlow() {
+
+export default function PredictFlow(filename:any) 
+{
+    const studentData:dataset[]=[]
+    
+
 
 
 
@@ -22,12 +28,18 @@ export default function PredictFlow() {
 
 }
 
+async function Decompressed()
+{
+
+    await exec('')
+}
+
 function Init() {
     GetAllFilePath(`${RootPath}/all`,"")
-    PredictDataPath.forEach(element => {
-        console.log(`path:${element.data}`)
-    });
-    console.log(PredictDataPath?.length)
+    // PredictDataPath.forEach(element => {
+    //     console.log(`path:${element.data}`)
+    // });
+    // console.log(PredictDataPath?.length)
 }
 
 async function GetAllFilePath(RootPath: any, fileName: string) {
@@ -59,7 +71,5 @@ function ReadData(PATH: string) {
     return intArray;
     
 }
-
-
 
 Init()
