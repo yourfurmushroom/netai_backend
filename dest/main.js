@@ -50,13 +50,12 @@ function ConnectionToServer(port) {
 }
 class DataBase {
     constructor() {
-        const db_option = {
+        this.db_option = {
             host: 'localhost',
             user: 'root',
             password: 'Jet..123@2024!',
             database: 'netai_data_scients',
         };
-        this.db = mysql_1.default.createConnection(db_option);
     }
     CheckConnection() {
         this.db.connect((err) => {
@@ -69,12 +68,14 @@ class DataBase {
     }
     CheckUser(username, password) {
         return __awaiter(this, void 0, void 0, function* () {
+            this.db = mysql_1.default.createConnection(this.db_option);
             return new Promise((resolve, reject) => {
                 this.db.query('SELECT * FROM User WHERE userName = ? AND password = ?', [username, password], (err, result) => {
                     if (err) {
                         reject(err);
                     }
                     else {
+                        this.db.end();
                         resolve(result.length === 1);
                     }
                 });
@@ -97,18 +98,24 @@ class DataBase {
     }
     InsertData(username, password) {
         return __awaiter(this, void 0, void 0, function* () {
+            this.db = mysql_1.default.createConnection(this.db_option);
             const veryfied = yield this.VerifyInDatabase(username);
             console.log(veryfied);
             try {
                 if (!veryfied)
                     this.db.query(`INSERT INTO User VALUES("${username}","${password}")`, (err, result) => {
                         if (err) {
+                            this.db.end();
                             throw err;
+                        }
+                        else {
+                            this.db.end();
                         }
                     });
                 return veryfied;
             }
             catch (_a) {
+                this.db.end();
                 return false;
             }
         });

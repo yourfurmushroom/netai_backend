@@ -17,19 +17,16 @@ function ConnectionToServer(port: number): WebSocket.Server {
 
 class DataBase {
   db: any;
+  db_option:Object;
 
 
   constructor() {
-    const db_option = {
+    this.db_option = {
       host: 'localhost',
       user: 'root',
       password: 'Jet..123@2024!',
       database: 'netai_data_scients',
     }
-
-    this.db = mysql.createConnection(db_option)
-
-
   }
 
 
@@ -45,6 +42,7 @@ class DataBase {
   }
 
   public async CheckUser(username: string, password: string): Promise<boolean> {
+    this.db = mysql.createConnection(this.db_option)
     return new Promise((resolve, reject) => {
       this.db.query(
         'SELECT * FROM User WHERE userName = ? AND password = ?',
@@ -53,6 +51,7 @@ class DataBase {
           if (err) {
             reject(err);
           } else {
+            this.db.end()
             resolve(result.length === 1);
           }
         }
@@ -61,6 +60,7 @@ class DataBase {
   }
 
   public async VerifyInDatabase(username: string): Promise<boolean> {
+    
     return new Promise((resolve, reject) => {
       this.db.query(
         'SELECT * FROM User WHERE userName = ?',
@@ -69,6 +69,7 @@ class DataBase {
           if (err) {
             reject(err);
           } else {
+            
             resolve(result.length === 1);
           }
         }
@@ -77,19 +78,26 @@ class DataBase {
   }
 
   public async InsertData(username: string, password: string): Promise<boolean> {
+    this.db = mysql.createConnection(this.db_option)
     const veryfied = await this.VerifyInDatabase(username)
     console.log(veryfied)
     try {
       if (!veryfied)
         this.db.query(`INSERT INTO User VALUES("${username}","${password}")`, (err: Error, result: object) => {
           if (err) {
+            this.db.end()
             throw err;
+          }
+          else
+          {
+            this.db.end()
           }
         })
       return veryfied
 
     }
     catch {
+      this.db.end()
       return false;
     }
   }
