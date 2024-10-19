@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import WebSocket = require('ws')
 import mysql from 'mysql';
 import path from 'path'
+import PredictFlow from './Predict';
 
 function ReadData(path: string): string {
   const data = fs.readFileSync(path, 'utf-8');
@@ -10,14 +11,14 @@ function ReadData(path: string): string {
 
 
 function ConnectionToServer(port: number): WebSocket.Server {
-  const wss = new WebSocket.Server({ port: 8888 ,host:"0.0.0.0"});
+  const wss = new WebSocket.Server({ port: 8888, host: "0.0.0.0" });
   console.log("server start on 8888");
   return wss;
 }
 
 class DataBase {
   db: any;
-  db_option:Object;
+  db_option: Object;
 
 
   constructor() {
@@ -60,7 +61,7 @@ class DataBase {
   }
 
   public async VerifyInDatabase(username: string): Promise<boolean> {
-    
+
     return new Promise((resolve, reject) => {
       this.db.query(
         'SELECT * FROM User WHERE userName = ?',
@@ -69,7 +70,7 @@ class DataBase {
           if (err) {
             reject(err);
           } else {
-            
+
             resolve(result.length === 1);
           }
         }
@@ -88,8 +89,7 @@ class DataBase {
             this.db.end()
             throw err;
           }
-          else
-          {
+          else {
             this.db.end()
           }
         })
@@ -109,7 +109,7 @@ async function WssListener(wss: WebSocket.Server, db: any) {
   wss.on('connection', (ws: WebSocket) => {
 
     console.log("connected")
-    try{
+    try {
       ws.on('message', (message: string) => {
         let msg = JSON.parse(message)
         try {
@@ -122,7 +122,7 @@ async function WssListener(wss: WebSocket.Server, db: any) {
               else
                 ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }))
             });
-  
+
           }
           else if (msg['flag'] === 'Register') {
             if (msg['password'] === msg['secondpassword']) {
@@ -137,40 +137,51 @@ async function WssListener(wss: WebSocket.Server, db: any) {
               ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }))
             }
           }
-          else if (msg['flag']==='Upload')
-          {
-            const filePath = path.join(__dirname, '../studentItems', `file_${Date.now()}_${msg['filename']}`);
-            fs.writeFile(filePath, Buffer.from(msg['filebuffer'],'base64'), (err) => {
-              if (err) {
-                console.error('文件保存失敗', err);
-                ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }))
-              } else {
-                console.log('文件已保存:', filePath);
-                ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功" ,filename:msg['filename']}))
-              }
-            });
+          else if (msg['flag'] === 'Upload') {
+            let tmp = msg['filename'].split('.')
+            let typeOfFile = tmp.pop();
+            if (typeOfFile === 'rar' || typeOfFile === 'zip' || typeOfFile === '7z') {
+              const filename=`_${Date.now()}`
+              const filePath = path.join(__dirname, '../studentItems', msg['username']+`${filename}.${typeOfFile}`);
+              fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
+                if (err) {
+                  console.error('文件保存失敗', err);
+                  ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }))
+                } else {
+                  console.log('文件已保存:', filePath);
+                  console.log(msg['filename'])
+                  ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }))
+                  PredictFlow(msg['username']+filename,typeOfFile)
+                }
+              });
+            }
+            else
+            {
+              console.error('文件保存失敗');
+                ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }))
+            }
           }
           else {
-  
+
           }
         }
         catch (error) {
           console.log(error)
         }
       });
-  
+
       ws.on('close', () => {
-        
+
       });
-  
+
       ws.on('error', (error) => {
         console.error(`WebSocket error: ${error.message}`);
       });
     }
-    catch{
-      
+    catch {
+
     }
-    
+
 
   });
 }

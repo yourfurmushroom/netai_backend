@@ -39,6 +39,7 @@ const fs = __importStar(require("fs"));
 const WebSocket = require("ws");
 const mysql_1 = __importDefault(require("mysql"));
 const path_1 = __importDefault(require("path"));
+const Predict_1 = __importDefault(require("./Predict"));
 function ReadData(path) {
     const data = fs.readFileSync(path, 'utf-8');
     return data;
@@ -153,17 +154,28 @@ function WssListener(wss, db) {
                             }
                         }
                         else if (msg['flag'] === 'Upload') {
-                            const filePath = path_1.default.join(__dirname, '../studentItems', `file_${Date.now()}_${msg['filename']}`);
-                            fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
-                                if (err) {
-                                    console.error('文件保存失敗', err);
-                                    ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }));
-                                }
-                                else {
-                                    console.log('文件已保存:', filePath);
-                                    ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
-                                }
-                            });
+                            let tmp = msg['filename'].split('.');
+                            let typeOfFile = tmp.pop();
+                            if (typeOfFile === 'rar' || typeOfFile === 'zip' || typeOfFile === '7z') {
+                                const filename = `_${Date.now()}`;
+                                const filePath = path_1.default.join(__dirname, '../studentItems', msg['username'] + `${filename}.${typeOfFile}`);
+                                fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
+                                    if (err) {
+                                        console.error('文件保存失敗', err);
+                                        ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }));
+                                    }
+                                    else {
+                                        console.log('文件已保存:', filePath);
+                                        console.log(msg['filename']);
+                                        ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
+                                        (0, Predict_1.default)(msg['username'] + filename, typeOfFile);
+                                    }
+                                });
+                            }
+                            else {
+                                console.error('文件保存失敗');
+                                ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }));
+                            }
                         }
                         else {
                         }
