@@ -71,7 +71,7 @@ class DataBase {
         return __awaiter(this, void 0, void 0, function* () {
             this.db = mysql_1.default.createConnection(this.db_option);
             return new Promise((resolve, reject) => {
-                this.db.query('SELECT * FROM User WHERE userName = ? AND password = ?', [username, password], (err, result) => {
+                this.db.query('SELECT * FROM account WHERE account = ? AND password = ?', [username, password], (err, result) => {
                     if (err) {
                         reject(err);
                     }
@@ -86,7 +86,7 @@ class DataBase {
     VerifyInDatabase(username) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                this.db.query('SELECT * FROM User WHERE userName = ?', [username], (err, result) => {
+                this.db.query('SELECT * FROM account WHERE userName = ?', [username], (err, result) => {
                     if (err) {
                         reject(err);
                     }
@@ -117,7 +117,58 @@ class DataBase {
             }
             catch (_a) {
                 this.db.end();
+                return true;
+            }
+        });
+    }
+    ModifyPassword(account, newPassword) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.db = mysql_1.default.createConnection(this.db_option);
+            try {
+                this.db.query(`UPDATE account set password = ${newPassword} where account = '${account}'`, (err, result) => {
+                    if (err) {
+                        this.db.end();
+                        throw err;
+                    }
+                    else {
+                        this.db.end();
+                        return true;
+                    }
+                });
+                return true;
+            }
+            catch (_a) {
+                this.db.end();
                 return false;
+            }
+        });
+    }
+    GetGroupName(account) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.db = mysql_1.default.createConnection(this.db_option);
+            try {
+                this.db.query(`select name from groupName where account='${account}' `, (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        this.db.end();
+                        throw err;
+                    }
+                    else {
+                        if (result.length > 0) {
+                            console.log(`result ${result.map((row) => row.name)}`);
+                            this.db.end();
+                            return result.map((row) => row.name);
+                        }
+                        else {
+                            return undefined;
+                        }
+                    }
+                });
+            }
+            catch (e) {
+                this.db.end();
+                console.log(e);
+                return undefined;
             }
         });
     }
@@ -134,8 +185,10 @@ function WssListener(wss, db) {
                             console.log("asd");
                             db.CheckUser(msg['username'], msg['password']).then((e) => {
                                 console.log(e);
-                                if (e)
-                                    ws.send(JSON.stringify({ messageField: "True", detail: "login Successful" }));
+                                if (e) {
+                                    let groupname = db.GetGroupName(msg['username']);
+                                    ws.send(JSON.stringify({ messageField: "True", detail: "login Successful", groupName: groupname }));
+                                }
                                 else
                                     ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }));
                             });
@@ -151,6 +204,20 @@ function WssListener(wss, db) {
                             }
                             else {
                                 ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }));
+                            }
+                        }
+                        else if (msg['flag'] === 'Modify') {
+                            if (msg['password'] === msg['secondpassword']) {
+                                db.ModifyPassword(msg['userName'], msg['password']).then((e) => {
+                                    console.log(`aaaaaaaaaaaaaaaaa${e}`);
+                                    if (e == true)
+                                        ws.send(JSON.stringify({ messageField: "True", detail: "修改成功" }));
+                                    else
+                                        ws.send(JSON.stringify({ messageField: "False", detail: "發生錯誤，稍後重試" }));
+                                });
+                            }
+                            else {
+                                ws.send(JSON.stringify({ messageField: "False", detail: "密碼不一致" }));
                             }
                         }
                         else if (msg['flag'] === 'Upload') {
@@ -176,6 +243,12 @@ function WssListener(wss, db) {
                                 console.error('文件保存失敗');
                                 ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }));
                             }
+                        }
+                        else if (msg['flag'] === 'ShowBoard') {
+                            console.log("correct");
+                            ws.send(JSON.stringify({
+                                items: ['aa', 'bb', 'cc', 'aa', 'bb', 'cc', 'aa', 'bb', 'cc']
+                            }));
                         }
                         else {
                         }

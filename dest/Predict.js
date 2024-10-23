@@ -33,73 +33,53 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs = __importStar(require("fs"));
+const util_1 = require("util");
 const { exec } = require('child_process');
+const promiseExec = (0, util_1.promisify)(exec);
 const RootPath = "/var/www/server/netai_backend/netai_backend/predictData";
 const StudentDataPath = '/var/www/server/netai_backend/netai_backend/studentItems';
 const PredictDataPath = [];
 function ExportFolder(filename, typeOfFile) {
-    if (typeOfFile === 'zip') {
-        console.log(filename + " is zip");
-        exec(`mkdir ${StudentDataPath}/${filename}`);
-        exec(`unzip ${StudentDataPath}/${filename} -d ${StudentDataPath}/${filename}`, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`執行命令時出錯: ${error.message}`);
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield promiseExec(`mkdir ${StudentDataPath}/${filename}`);
+            console.log(`${filename} directory created`);
+            let command;
+            if (typeOfFile === 'zip') {
+                console.log(`${filename} is zip`);
+                command = `unzip ${StudentDataPath}/${filename} -d ${StudentDataPath}/${filename}`;
+            }
+            else if (typeOfFile === 'rar') {
+                console.log(`${filename} is rar`);
+                command = `unrar x ${StudentDataPath}/${filename} ${StudentDataPath}/${filename}`;
+            }
+            else if (typeOfFile === '7z') {
+                console.log(`${filename} is 7z`);
+                command = `7z x ${StudentDataPath}/${filename}.7z -o${StudentDataPath}/${filename}`;
+            }
+            else {
+                console.log(`${filename} is null`);
                 return;
             }
-            if (stderr) {
-                console.error(`錯誤輸出: ${stderr}`);
-                return;
-            }
-            console.log(`命令輸出: ${stdout}`);
-        });
-    }
-    else if (typeOfFile === 'rar') {
-        exec(`mkdir ${StudentDataPath}/${filename}`);
-        console.log(filename + " is rar");
-        exec(`unrar x ${StudentDataPath}/${filename} ${StudentDataPath}/${filename}`, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`執行命令時出錯: ${error.message}`);
-                return;
-            }
-            if (stderr) {
-                console.error(`錯誤輸出: ${stderr}`);
-                return;
-            }
-            console.log(`命令輸出: ${stdout}`);
-        });
-    }
-    else if (typeOfFile === '7z') {
-        console.log(filename + " is 7z");
-        exec(`mkdir ${StudentDataPath}/${filename}`);
-        exec(`7z x  ${StudentDataPath}/${filename}.7z -o${StudentDataPath}/${filename}`, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`執行命令時出錯: ${error.message}`);
-                return;
-            }
-            if (stderr) {
-                console.error(`錯誤輸出: ${stderr}`);
-                return;
-            }
-            console.log(`命令輸出: ${stdout}`);
-        });
-    }
-    else {
-        console.log(filename + " is null");
-    }
+            yield promiseExec(command);
+            console.log(`Command executed: ${command}`);
+        }
+        catch (error) {
+            console.error("Caught an error:", error);
+        }
+    });
 }
 function PredictFlow(filename, typeOfFile) {
-    ExportFolder(filename, typeOfFile);
-    const studentData = GetAllStudentFilePath(`${StudentDataPath}/${filename}`, []);
-    studentData.forEach(element => {
-        ReadData(JSON.stringify(element));
+    return __awaiter(this, void 0, void 0, function* () {
+        yield ExportFolder(filename, typeOfFile);
+        console.log("---------------------------------------------------------------after------------------------------------------------------");
+        const studentData = GetAllStudentFilePath(`${StudentDataPath}/${filename}`, '', []);
+        // await studentData.forEach(element => {
+        //     ReadData(JSON.stringify(element))
+        // });
     });
 }
 exports.default = PredictFlow;
-function Decompressed() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield exec('');
-    });
-}
 function Init() {
     try {
         GetAllFilePath(`${RootPath}/all`, "");
@@ -134,35 +114,36 @@ function GetAllFilePath(RootPath, fileName) {
         });
     });
 }
-function GetAllStudentFilePath(RootPath, studentData = []) {
-    let currentDirItems = fs.readdirSync(RootPath);
-    console.log("aa");
-    currentDirItems.forEach(item => {
-        const itemPath = `${RootPath}/${item}`;
-        if (fs.statSync(itemPath).isDirectory()) {
-            // 遞迴進入子目錄時，帶入相同的 studentData
-            GetAllStudentFilePath(itemPath, studentData);
-        }
-        else {
-            const filePath = `${RootPath}/y_predict.csv`;
-            // 檢查文件是否存在並且 studentData 沒有已存在此文件的資料
-            if (item === 'y_predict.csv' && fs.existsSync(filePath) && !studentData.some(data => data.path === filePath)) {
-                studentData.push({
-                    name: RootPath.split('/').pop() || '',
-                    path: filePath,
-                    data: ReadData(filePath) // 讀取文件資料
-                });
-                console.log('exist');
+function GetAllStudentFilePath(RootPath, fileName, studentData) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let currentDirItems = fs.readdirSync(RootPath);
+        currentDirItems.forEach(item => {
+            console.log(item);
+            if (fs.statSync(`${RootPath}/${item}`).isDirectory()) {
+                GetAllStudentFilePath(`${RootPath}/${item}`, item, studentData);
             }
-        }
+            else {
+                if (fs.existsSync(`${RootPath}/y_predict.csv`) && !studentData.some(items => items.name === fileName && items.path === `${RootPath}/y_predict.csv`)) {
+                    studentData.push({
+                        name: fileName,
+                        path: `${RootPath}/y_predict.csv`.toString(),
+                        data: ReadData(`${RootPath}/y_predict.csv`)
+                    });
+                    console.log('exist');
+                }
+            }
+        });
+        console.log(JSON.stringify(studentData));
+        return studentData;
     });
-    return studentData; // 確保遞迴最終返回完整的 studentData
 }
 function ReadData(PATH) {
-    let file = fs.readFileSync(PATH, { encoding: "utf-8" });
-    const stringArray = file.split('\n').map(item => item.trim());
-    stringArray.shift();
-    const intArray = stringArray.map(Number);
-    return intArray;
+    return __awaiter(this, void 0, void 0, function* () {
+        let file = fs.readFileSync(PATH, { encoding: "utf-8" });
+        const stringArray = file.split('\n').map(item => item.trim());
+        stringArray.shift();
+        const intArray = stringArray.map(Number);
+        return intArray;
+    });
 }
 Init();

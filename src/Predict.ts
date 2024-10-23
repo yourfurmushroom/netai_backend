@@ -1,7 +1,9 @@
 import * as fs from 'fs';
 import { parse } from 'csv-parse';
 import path from 'path';
+import { promisify } from 'util';
 const { exec } = require('child_process');
+const promiseExec=promisify(exec);
 
 interface dataset {
     name: string;
@@ -14,82 +16,49 @@ const RootPath = "/var/www/server/netai_backend/netai_backend/predictData"
 const StudentDataPath='/var/www/server/netai_backend/netai_backend/studentItems'
 const PredictDataPath: dataset[] = [];
 
-function ExportFolder(filename:any,typeOfFile:string)
-{
-    if(typeOfFile==='zip')
-        {
-            console.log(filename+" is zip")
-            exec(`mkdir ${StudentDataPath}/${filename}`)
-            exec(`unzip ${StudentDataPath}/${filename} -d ${StudentDataPath}/${filename}`,(error:any, stdout:any, stderr:any) => {
-                if (error) {
-                    console.error(`執行命令時出錯: ${error.message}`);
-                    return;
-                }
-                if (stderr) {
-                    console.error(`錯誤輸出: ${stderr}`);
-                    return;
-                }
-                console.log(`命令輸出: ${stdout}`);
-            })
+async function ExportFolder(filename:any, typeOfFile:string) {
+    try {
+        await promiseExec(`mkdir ${StudentDataPath}/${filename}`);
+        console.log(`${filename} directory created`);
+
+        let command;
+        if (typeOfFile === 'zip') {
+            console.log(`${filename} is zip`);
+            command = `unzip ${StudentDataPath}/${filename} -d ${StudentDataPath}/${filename}`;
+        } else if (typeOfFile === 'rar') {
+            console.log(`${filename} is rar`);
+            command = `unrar x ${StudentDataPath}/${filename} ${StudentDataPath}/${filename}`;
+        } else if (typeOfFile === '7z') {
+            console.log(`${filename} is 7z`);
+            command = `7z x ${StudentDataPath}/${filename}.7z -o${StudentDataPath}/${filename}`;
+        } else {
+            console.log(`${filename} is null`);
+            return;
         }
-        else if(typeOfFile==='rar')
-        {
-            exec(`mkdir ${StudentDataPath}/${filename}`)
-            console.log(filename+" is rar")
-            exec(`unrar x ${StudentDataPath}/${filename} ${StudentDataPath}/${filename}`,(error:any, stdout:any, stderr:any) => {
-                if (error) {
-                    console.error(`執行命令時出錯: ${error.message}`);
-                    return;
-                }
-                if (stderr) {
-                    console.error(`錯誤輸出: ${stderr}`);
-                    return;
-                }
-                console.log(`命令輸出: ${stdout}`);
-            })
-        
-        }
-        else if(typeOfFile==='7z')
-        {
-            console.log(filename+" is 7z")
-            exec(`mkdir ${StudentDataPath}/${filename}`)
-            exec(`7z x  ${StudentDataPath}/${filename}.7z -o${StudentDataPath}/${filename}`,(error:any, stdout:any, stderr:any) => {
-                if (error) {
-                    console.error(`執行命令時出錯: ${error.message}`);
-                    return;
-                }
-                if (stderr) {
-                    console.error(`錯誤輸出: ${stderr}`);
-                    return;
-                }
-                console.log(`命令輸出: ${stdout}`);
-            }) 
-        }
-        else
-        {
-            console.log(filename+" is null")
-        }
+
+        await promiseExec(command);
+        console.log(`Command executed: ${command}`);
+    } catch (error) {
+        console.error("Caught an error:", error);
+    }
 }
 
-export default function PredictFlow(filename:any,typeOfFile:string) 
+
+export default async function PredictFlow(filename:any,typeOfFile:string) 
 {
-    ExportFolder(filename,typeOfFile)
-    const studentData=GetAllStudentFilePath(`${StudentDataPath}/${filename}`,[])
+    await ExportFolder(filename,typeOfFile)
+    console.log("---------------------------------------------------------------after------------------------------------------------------")
+    const studentData=GetAllStudentFilePath(`${StudentDataPath}/${filename}`,'',[])
 
 
 
 
-    studentData.forEach(element => {
-        ReadData(JSON.stringify(element))
-    });
+    // await studentData.forEach(element => {
+    //     ReadData(JSON.stringify(element))
+    // });
 
 }
 
-async function Decompressed()
-{
-
-    await exec('')
-}
 
 function Init() {
     try{
@@ -128,36 +97,31 @@ async function GetAllFilePath(RootPath: any, fileName: string) {
     });
 }
 
-function GetAllStudentFilePath(RootPath: any, studentData: dataset[] = []): dataset[] {
-    let currentDirItems = fs.readdirSync(RootPath);
-    console.log("aa")
+async function GetAllStudentFilePath(RootPath: any, fileName: string ,studentData:dataset[]) {
+    
+    let currentDirItems = fs.readdirSync(RootPath)
     currentDirItems.forEach(item => {
-        const itemPath = `${RootPath}/${item}`;
-
-        if (fs.statSync(itemPath).isDirectory()) {
-            // 遞迴進入子目錄時，帶入相同的 studentData
-            GetAllStudentFilePath(itemPath, studentData);
-        } else {
-            const filePath = `${RootPath}/y_predict.csv`;
-
-            // 檢查文件是否存在並且 studentData 沒有已存在此文件的資料
-            if (item === 'y_predict.csv' && fs.existsSync(filePath) && !studentData.some(data => data.path === filePath)) {
+        console.log(item)
+        if (fs.statSync(`${RootPath}/${item}`).isDirectory()) {
+            GetAllStudentFilePath(`${RootPath}/${item}`, item,studentData)
+        }
+        else {
+            if (fs.existsSync(`${RootPath}/y_predict.csv`) && !studentData.some(items=>items.name===fileName && items.path === `${RootPath}/y_predict.csv`) ){
                 studentData.push({
-                    name: RootPath.split('/').pop() || '',  // 使用當前資料夾名稱作為檔案名稱
-                    path: filePath,
-                    data: ReadData(filePath) // 讀取文件資料
-                });
-                console.log('exist');
+                    name: fileName,
+                    path: `${RootPath}/y_predict.csv`.toString(),
+                    data:ReadData(`${RootPath}/y_predict.csv`)
+                })
+                console.log('exist')
             }
         }
     });
-
-    return studentData; // 確保遞迴最終返回完整的 studentData
+    console.log(JSON.stringify(studentData))
+    return studentData;
 }
 
 
-
-function ReadData(PATH: string) {
+async function ReadData(PATH: string) {
     let file = fs.readFileSync(PATH, { encoding: "utf-8" })
     const stringArray = file.split('\n').map(item => item.trim());
     stringArray.shift()
