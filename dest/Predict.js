@@ -38,12 +38,13 @@ const { exec } = require('child_process');
 const promiseExec = (0, util_1.promisify)(exec);
 const RootPath = "/var/www/server/netai_backend/netai_backend/predictData";
 const StudentDataPath = '/var/www/server/netai_backend/netai_backend/studentItems';
+const DatasetName = [];
+// const PredictDataPath: dataset[]=[];
 const PredictDataPath = [];
 function ExportFolder(filename, typeOfFile) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             yield promiseExec(`mkdir ${StudentDataPath}/${filename}`);
-            console.log(`${filename} directory created`);
             let command;
             if (typeOfFile === 'zip') {
                 console.log(`${filename} is zip`);
@@ -73,13 +74,54 @@ function PredictFlow(filename, typeOfFile) {
     return __awaiter(this, void 0, void 0, function* () {
         yield ExportFolder(filename, typeOfFile);
         console.log("---------------------------------------------------------------after------------------------------------------------------");
-        const studentData = GetAllStudentFilePath(`${StudentDataPath}/${filename}`, '', []);
+        const studentData = yield GetAllStudentFilePath(`${StudentDataPath}`, filename, DatasetName);
+        console.log(Object.keys(studentData).length);
+        console.log(Object.keys(PredictDataPath).length);
+        let allAUC = [];
+        for (let i = 0; i < Object.keys(studentData).length; i++) {
+            allAUC.push(checkAUC(PredictDataPath[DatasetName[i]], studentData[DatasetName[i]]));
+        }
+        allAUC.forEach(element => {
+            console.log(element);
+        });
         // await studentData.forEach(element => {
         //     ReadData(JSON.stringify(element))
         // });
     });
 }
 exports.default = PredictFlow;
+function checkAUC(correctAns, predictAns) {
+    if (predictAns.length !== correctAns.length) {
+        throw new Error('Predictions and labels must have the same length');
+    }
+    let tp = 0; // 真正例
+    let fp = 0; // 假正例
+    let prevTPR = 0; // 上一個 TPR
+    let prevFPR = 0; // 上一個 FPR
+    let auc = 0;
+    const P = correctAns.filter((correctAns) => correctAns === 1).length; // 正例數量
+    const N = correctAns.filter((correctAns) => correctAns === 0).length; // 負例數量
+    const combined = predictAns.map((pred, idx) => ({
+        score: pred,
+        label: correctAns[idx],
+    }));
+    // 將預測和標籤一起排序，這裡假設你的預測是 0 或 1，按 1 排到前面
+    combined.sort((a, b) => b.score - a.score);
+    for (let i = 0; i < combined.length; i++) {
+        if (combined[i].label === 1) {
+            tp++;
+        }
+        else {
+            fp++;
+        }
+        const tpr = tp / P; // 真陽率
+        const fpr = fp / N; // 假陽率
+        auc += (fpr - prevFPR) * (tpr + prevTPR) / 2;
+        prevTPR = tpr;
+        prevFPR = fpr;
+    }
+    return auc;
+}
 function Init() {
     try {
         GetAllFilePath(`${RootPath}/all`, "");
@@ -101,49 +143,41 @@ function GetAllFilePath(RootPath, fileName) {
                 GetAllFilePath(`${RootPath}/${item}`, item);
             }
             else {
-                if (fs.existsSync(`${RootPath}/y_test.csv`) && !PredictDataPath.some(items => items.name === fileName && items.path === `${RootPath}/y_test.csv`)) {
-                    PredictDataPath.push({
-                        name: fileName,
-                        path: `${RootPath}/y_test.csv`.toString(),
-                        data: ReadData(`${RootPath}/y_test.csv`)
-                    });
-                    console.log('exist');
+                // if (fs.existsSync(`${RootPath}/y_test.csv`) && !PredictDataPath.some(items=>items.name===fileName && items.path === `${RootPath}/y_test.csv`) ){
+                if (fs.existsSync(`${RootPath}/y_test.csv`) && !PredictDataPath.hasOwnProperty(fileName)) {
+                    // PredictDataPath.push({
+                    //     name: fileName,
+                    //     path: `${RootPath}/y_test.csv`.toString(),
+                    //     data:ReadData(`${RootPath}/y_test.csv`)
+                    // })
+                    PredictDataPath[fileName] = ReadData(`${RootPath}/y_test.csv`);
+                    DatasetName.push(fileName);
                     return;
                 }
             }
         });
     });
 }
-function GetAllStudentFilePath(RootPath, fileName, studentData) {
+function GetAllStudentFilePath(RootPath, fileName, dataSetName) {
     return __awaiter(this, void 0, void 0, function* () {
-        let currentDirItems = fs.readdirSync(RootPath);
-        currentDirItems.forEach(item => {
-            console.log(item);
-            if (fs.statSync(`${RootPath}/${item}`).isDirectory()) {
-                GetAllStudentFilePath(`${RootPath}/${item}`, item, studentData);
-            }
-            else {
-                if (fs.existsSync(`${RootPath}/y_predict.csv`) && !studentData.some(items => items.name === fileName && items.path === `${RootPath}/y_predict.csv`)) {
-                    studentData.push({
-                        name: fileName,
-                        path: `${RootPath}/y_predict.csv`.toString(),
-                        data: ReadData(`${RootPath}/y_predict.csv`)
-                    });
-                    console.log('exist');
-                }
-            }
-        });
-        console.log(JSON.stringify(studentData));
+        // let studentData:dataset[]=[]
+        let studentData = [];
+        for (let i = 0; i < dataSetName.length; i++) {
+            // studentData.push({
+            //     name: dataSetName[i],
+            //     path: `${RootPath}/${fileName}/Competition_data/${dataSetName[i]}/y_predict.csv`.toString(),
+            //     data:ReadData( `${RootPath}/${fileName}/Competition_data/${dataSetName[i]}/y_predict.csv`)
+            // })
+            studentData[dataSetName[i]] = ReadData(`${RootPath}/${fileName}/Competition_data/${dataSetName[i]}/y_predict.csv`);
+        }
         return studentData;
     });
 }
 function ReadData(PATH) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let file = fs.readFileSync(PATH, { encoding: "utf-8" });
-        const stringArray = file.split('\n').map(item => item.trim());
-        stringArray.shift();
-        const intArray = stringArray.map(Number);
-        return intArray;
-    });
+    let file = fs.readFileSync(PATH, { encoding: "utf-8" });
+    const stringArray = file.split('\n').map(item => item.trim());
+    stringArray.shift();
+    const intArray = stringArray.map(Number);
+    return intArray;
 }
 Init();

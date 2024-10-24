@@ -143,26 +143,33 @@ class DataBase {
             }
         });
     }
+    GetAllResult() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return "aa";
+        });
+    }
     GetGroupName(account) {
         return __awaiter(this, void 0, void 0, function* () {
             this.db = mysql_1.default.createConnection(this.db_option);
             try {
-                this.db.query(`select name from groupName where account='${account}' `, (err, result) => {
-                    if (err) {
-                        console.log(err);
-                        this.db.end();
-                        throw err;
-                    }
-                    else {
-                        if (result.length > 0) {
-                            console.log(`result ${result.map((row) => row.name)}`);
+                return new Promise((resolve, reject) => {
+                    this.db.query(`SELECT name FROM groupName WHERE account='${account}'`, (err, result) => {
+                        if (err) {
+                            console.log(err);
                             this.db.end();
-                            return result.map((row) => row.name);
+                            return reject(err); // 這裡是錯誤的情況
                         }
                         else {
-                            return undefined;
+                            this.db.end();
+                            if (result.length > 0) {
+                                let groupname = result.map((row) => row.name);
+                                return resolve(groupname); // 成功情況，回傳結果
+                            }
+                            else {
+                                return resolve(undefined); // 沒有找到結果時返回 undefined
+                            }
                         }
-                    }
+                    });
                 });
             }
             catch (e) {
@@ -176,22 +183,31 @@ class DataBase {
 function WssListener(wss, db) {
     return __awaiter(this, void 0, void 0, function* () {
         wss.on('connection', (ws) => {
+            // ws.send(JSON.stringify({
+            //   items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
+            // }))
             console.log("connected");
             try {
                 ws.on('message', (message) => {
                     let msg = JSON.parse(message);
                     try {
                         if (msg['flag'] === 'Login') {
-                            console.log("asd");
                             db.CheckUser(msg['username'], msg['password']).then((e) => {
                                 console.log(e);
                                 if (e) {
-                                    let groupname = db.GetGroupName(msg['username']);
-                                    ws.send(JSON.stringify({ messageField: "True", detail: "login Successful", groupName: groupname }));
+                                    db.GetGroupName(msg['username']).then((groupname) => {
+                                        // console.log(db.GetGroupName(msg['username']))
+                                        ws.send(JSON.stringify({ messageField: "True", detail: "login Successful", groupName: groupname }));
+                                    });
                                 }
                                 else
                                     ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }));
                             });
+                        }
+                        else if (msg['flag'] === 'ShowOverallBoard') {
+                            ws.send(JSON.stringify({
+                                items: ['aa', 'bb', 'cc', 'aa', 'bb', 'cc', 'aa', 'bb', 'cc']
+                            }));
                         }
                         else if (msg['flag'] === 'Register') {
                             if (msg['password'] === msg['secondpassword']) {
@@ -209,7 +225,6 @@ function WssListener(wss, db) {
                         else if (msg['flag'] === 'Modify') {
                             if (msg['password'] === msg['secondpassword']) {
                                 db.ModifyPassword(msg['userName'], msg['password']).then((e) => {
-                                    console.log(`aaaaaaaaaaaaaaaaa${e}`);
                                     if (e == true)
                                         ws.send(JSON.stringify({ messageField: "True", detail: "修改成功" }));
                                     else

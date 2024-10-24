@@ -124,29 +124,32 @@ class DataBase {
     }
   }
 
+  public async GetAllResult()
+  {
+    return "aa"
+  }
+
   public async GetGroupName(account:string)
   {
     this.db = mysql.createConnection(this.db_option)
     try{
-      this.db.query(`select name from groupName where account='${account}' `, (err: Error, result: any) => {
-        if (err) {
-          console.log(err)
-          this.db.end()
-          throw err;
-        }
-        else {
-          if(result.length>0)
-          {
-            console.log(`result ${result.map((row: any) => row.name)}`)
-            this.db.end()
-            return result.map((row: any) => row.name);
+      return new Promise((resolve, reject) => {
+        this.db.query(`SELECT name FROM groupName WHERE account='${account}'`, (err: Error, result: any) => {
+          if (err) {
+            console.log(err);
+            this.db.end();
+            return reject(err); // 這裡是錯誤的情況
+          } else {
+            this.db.end();
+            if (result.length > 0) {
+              let groupname = result.map((row: any) => row.name);
+              return resolve(groupname); // 成功情況，回傳結果
+            } else {
+              return resolve(undefined); // 沒有找到結果時返回 undefined
+            }
           }
-          else
-          {
-            return undefined
-          }
-        }
-      })
+        });
+      });
     }
     catch(e:any)
     {
@@ -159,7 +162,9 @@ class DataBase {
 
 async function WssListener(wss: WebSocket.Server, db: any) {
   wss.on('connection', (ws: WebSocket) => {
-
+    // ws.send(JSON.stringify({
+    //   items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
+    // }))
     console.log("connected")
     try {
       ws.on('message', (message: string) => {
@@ -167,16 +172,27 @@ async function WssListener(wss: WebSocket.Server, db: any) {
         try {
 
           if (msg['flag'] === 'Login') {
-            console.log("asd")
             db.CheckUser(msg['username'], msg['password']).then((e: boolean) => {
               console.log(e)
               if (e){
-                let groupname=db.GetGroupName(msg['username'])
-                ws.send(JSON.stringify({ messageField: "True", detail: "login Successful",groupName:groupname }))
+                db.GetGroupName(msg['username']).then((groupname:any)=>
+              {
+                
+                // console.log(db.GetGroupName(msg['username']))
+                ws.send(JSON.stringify({ messageField: "True", detail: "login Successful",groupName:groupname}))
+              })
+                
               }
               else
                 ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }))
             });
+          }
+
+          else if(msg['flag']==='ShowOverallBoard')
+          {
+            ws.send(JSON.stringify({
+              items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
+            }))
           }
 
           else if (msg['flag'] === 'Register') {
@@ -199,7 +215,7 @@ async function WssListener(wss: WebSocket.Server, db: any) {
             if (msg['password'] === msg['secondpassword'])
             {
               db.ModifyPassword(msg['userName'],msg['password']).then((e:boolean)=>{
-                console.log(`aaaaaaaaaaaaaaaaa${e}`)
+                
                 if (e == true)
                   ws.send(JSON.stringify({ messageField: "True", detail: "修改成功" }))
                 else
