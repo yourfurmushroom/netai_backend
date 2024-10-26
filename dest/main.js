@@ -35,6 +35,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.DataBase = void 0;
 const fs = __importStar(require("fs"));
 const WebSocket = require("ws");
 const mysql_1 = __importDefault(require("mysql"));
@@ -125,7 +126,7 @@ class DataBase {
         return __awaiter(this, void 0, void 0, function* () {
             this.db = mysql_1.default.createConnection(this.db_option);
             try {
-                this.db.query(`UPDATE account set password = ${newPassword} where account = '${account}'`, (err, result) => {
+                this.db.query(`UPDATE account set password = '${newPassword}' where account = '${account}'`, (err, result) => {
                     if (err) {
                         this.db.end();
                         throw err;
@@ -145,7 +146,41 @@ class DataBase {
     }
     GetAllResult() {
         return __awaiter(this, void 0, void 0, function* () {
-            return "aa";
+            return new Promise((resolve, reject) => {
+                this.db = mysql_1.default.createConnection(this.db_option);
+                this.db.query(`select * from submissionRecord`, (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        if (Object.keys(result).length > 0) {
+                            return resolve(result);
+                        }
+                    }
+                });
+                this.db.end();
+                this.db = null;
+            });
+        });
+    }
+    GetGroupResult(groupName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.db = mysql_1.default.createConnection(this.db_option);
+                this.db.query(`select * from submissionRecord where groupName = ?`, [groupName], (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        console.log(`result is : ${Object.keys(result).length}`);
+                        if (Object.keys(result).length > 0) {
+                            return resolve(result);
+                        }
+                    }
+                });
+                this.db.end();
+                this.db = null;
+            });
         });
     }
     GetGroupName(account) {
@@ -157,16 +192,16 @@ class DataBase {
                         if (err) {
                             console.log(err);
                             this.db.end();
-                            return reject(err); // 這裡是錯誤的情況
+                            return reject(err);
                         }
                         else {
                             this.db.end();
                             if (result.length > 0) {
                                 let groupname = result.map((row) => row.name);
-                                return resolve(groupname); // 成功情況，回傳結果
+                                return resolve(groupname);
                             }
                             else {
-                                return resolve(undefined); // 沒有找到結果時返回 undefined
+                                return resolve(undefined);
                             }
                         }
                     });
@@ -179,7 +214,24 @@ class DataBase {
             }
         });
     }
+    InsertScore(publicScore, privateScore, groupName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.db = mysql_1.default.createConnection(this.db_option);
+                this.db.query('insert into submissionRecord (groupName, time, publicAUC, privateAUC) values (?,NOW(),?,?)', [groupName, publicScore, privateScore], (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                    }
+                });
+                this.db.end();
+                this.db = null;
+            });
+        });
+    }
 }
+exports.DataBase = DataBase;
 function WssListener(wss, db) {
     return __awaiter(this, void 0, void 0, function* () {
         wss.on('connection', (ws) => {
@@ -205,9 +257,11 @@ function WssListener(wss, db) {
                             });
                         }
                         else if (msg['flag'] === 'ShowOverallBoard') {
-                            ws.send(JSON.stringify({
-                                items: ['aa', 'bb', 'cc', 'aa', 'bb', 'cc', 'aa', 'bb', 'cc']
-                            }));
+                            db.GetAllResult().then((e) => {
+                                ws.send(JSON.stringify({
+                                    items: e
+                                }));
+                            });
                         }
                         else if (msg['flag'] === 'Register') {
                             if (msg['password'] === msg['secondpassword']) {
@@ -250,7 +304,7 @@ function WssListener(wss, db) {
                                         console.log('文件已保存:', filePath);
                                         console.log(msg['filename']);
                                         ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
-                                        (0, Predict_1.default)(msg['username'] + filename, typeOfFile);
+                                        (0, Predict_1.default)(msg['username'] + filename, typeOfFile, msg['groupName']);
                                     }
                                 });
                             }
@@ -260,10 +314,11 @@ function WssListener(wss, db) {
                             }
                         }
                         else if (msg['flag'] === 'ShowBoard') {
-                            console.log("correct");
-                            ws.send(JSON.stringify({
-                                items: ['aa', 'bb', 'cc', 'aa', 'bb', 'cc', 'aa', 'bb', 'cc']
-                            }));
+                            db.GetGroupResult(msg['groupName']).then((e) => {
+                                ws.send(JSON.stringify({
+                                    items: e
+                                }));
+                            });
                         }
                         else {
                         }

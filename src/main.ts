@@ -3,6 +3,7 @@ import WebSocket = require('ws')
 import mysql from 'mysql';
 import path from 'path'
 import PredictFlow from './Predict';
+import { group } from 'console';
 
 function ReadData(path: string): string {
   const data = fs.readFileSync(path, 'utf-8');
@@ -16,7 +17,7 @@ function ConnectionToServer(port: number): WebSocket.Server {
   return wss;
 }
 
-class DataBase {
+export class DataBase {
   db: any;
   db_option: Object;
 
@@ -101,11 +102,10 @@ class DataBase {
     }
   }
 
-  public async ModifyPassword(account:string,newPassword:string)
-  {
+  public async ModifyPassword(account: string, newPassword: string) {
     this.db = mysql.createConnection(this.db_option)
-    try{
-      this.db.query(`UPDATE account set password = ${newPassword} where account = '${account}'`, (err: Error, result: object) => {
+    try {
+      this.db.query(`UPDATE account set password = '${newPassword}' where account = '${account}'`, (err: Error, result: object) => {
         if (err) {
           this.db.end()
           throw err;
@@ -117,46 +117,100 @@ class DataBase {
       })
       return true;
     }
-    catch
-    {
+    catch {
       this.db.end()
       return false;
     }
   }
 
-  public async GetAllResult()
-  {
-    return "aa"
+  public async GetAllResult() {
+    return new Promise((resolve, reject) => {
+      this.db = mysql.createConnection(this.db_option)
+      
+      this.db.query(
+        `select * from submissionRecord`,
+        (err: Error, result: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            if (Object.keys(result).length > 0) {
+              return resolve(result); 
+          }
+        }
+        })
+      this.db.end()
+      this.db=null
+    });
   }
 
-  public async GetGroupName(account:string)
-  {
+  public async GetGroupResult(groupName:string) {
+    return new Promise((resolve, reject) => {
+      this.db = mysql.createConnection(this.db_option)
+      
+      this.db.query(
+        `select * from submissionRecord where groupName = ?`,
+        [groupName],
+        (err: Error, result: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            console.log(`result is : ${Object.keys(result).length}`)
+            if (Object.keys(result).length > 0) {
+              return resolve(result); 
+          }
+        }
+        })
+      this.db.end()
+      this.db=null
+    });
+  }
+
+  public async GetGroupName(account: string) {
     this.db = mysql.createConnection(this.db_option)
-    try{
+    try {
       return new Promise((resolve, reject) => {
         this.db.query(`SELECT name FROM groupName WHERE account='${account}'`, (err: Error, result: any) => {
           if (err) {
             console.log(err);
             this.db.end();
-            return reject(err); // 這裡是錯誤的情況
+            return reject(err); 
           } else {
             this.db.end();
             if (result.length > 0) {
               let groupname = result.map((row: any) => row.name);
-              return resolve(groupname); // 成功情況，回傳結果
+              return resolve(groupname); 
             } else {
-              return resolve(undefined); // 沒有找到結果時返回 undefined
+              return resolve(undefined); 
             }
           }
         });
       });
     }
-    catch(e:any)
-    {
+    catch (e: any) {
       this.db.end()
       console.log(e)
       return undefined;
     }
+  }
+
+  public async InsertScore(publicScore:Number,privateScore:Number,groupName:string)
+  {
+    return new Promise((resolve, reject) => {
+      this.db = mysql.createConnection(this.db_option)
+      this.db.query(
+        'insert into submissionRecord (groupName, time, publicAUC, privateAUC) values (?,NOW(),?,?)',
+        [groupName,publicScore,privateScore],
+        (err: Error, result: any) => {
+          if (err) {
+            reject(err);
+          } else {
+
+          }
+        }
+      );
+      this.db.end()
+      this.db=null
+    });
   }
 }
 
@@ -166,6 +220,7 @@ async function WssListener(wss: WebSocket.Server, db: any) {
     //   items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
     // }))
     console.log("connected")
+    
     try {
       ws.on('message', (message: string) => {
         let msg = JSON.parse(message)
@@ -174,25 +229,25 @@ async function WssListener(wss: WebSocket.Server, db: any) {
           if (msg['flag'] === 'Login') {
             db.CheckUser(msg['username'], msg['password']).then((e: boolean) => {
               console.log(e)
-              if (e){
-                db.GetGroupName(msg['username']).then((groupname:any)=>
-              {
-                
-                // console.log(db.GetGroupName(msg['username']))
-                ws.send(JSON.stringify({ messageField: "True", detail: "login Successful",groupName:groupname}))
-              })
-                
+              if (e) {
+                db.GetGroupName(msg['username']).then((groupname: any) => {
+
+                  // console.log(db.GetGroupName(msg['username']))
+                  ws.send(JSON.stringify({ messageField: "True", detail: "login Successful", groupName: groupname }))
+                })
+
               }
               else
                 ws.send(JSON.stringify({ messageField: "False", detail: "username or password error" }))
             });
           }
-
-          else if(msg['flag']==='ShowOverallBoard')
-          {
-            ws.send(JSON.stringify({
-              items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
-            }))
+         
+          else if (msg['flag'] === 'ShowOverallBoard') {
+            db.GetAllResult().then((e:any)=>{
+              ws.send(JSON.stringify({
+                items: e 
+             }))
+            })
           }
 
           else if (msg['flag'] === 'Register') {
@@ -204,18 +259,16 @@ async function WssListener(wss: WebSocket.Server, db: any) {
                   ws.send(JSON.stringify({ messageField: "False", detail: "username exist" }))
               })
             }
-            
+
             else {
               ws.send(JSON.stringify({ messageField: "False", detail: "typo error" }))
             }
           }
 
-          else if(msg['flag'] === 'Modify')
-          {
-            if (msg['password'] === msg['secondpassword'])
-            {
-              db.ModifyPassword(msg['userName'],msg['password']).then((e:boolean)=>{
-                
+          else if (msg['flag'] === 'Modify') {
+            if (msg['password'] === msg['secondpassword']) {
+              db.ModifyPassword(msg['userName'], msg['password']).then((e: boolean) => {
+
                 if (e == true)
                   ws.send(JSON.stringify({ messageField: "True", detail: "修改成功" }))
                 else
@@ -230,8 +283,8 @@ async function WssListener(wss: WebSocket.Server, db: any) {
             let tmp = msg['filename'].split('.')
             let typeOfFile = tmp.pop();
             if (typeOfFile === 'rar' || typeOfFile === 'zip' || typeOfFile === '7z') {
-              const filename=`_${Date.now()}`
-              const filePath = path.join(__dirname, '../studentItems', msg['username']+`${filename}.${typeOfFile}`);
+              const filename = `_${Date.now()}`
+              const filePath = path.join(__dirname, '../studentItems', msg['username'] + `${filename}.${typeOfFile}`);
               fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
                 if (err) {
                   console.error('文件保存失敗', err);
@@ -240,27 +293,30 @@ async function WssListener(wss: WebSocket.Server, db: any) {
                   console.log('文件已保存:', filePath);
                   console.log(msg['filename'])
                   ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }))
-                  PredictFlow(msg['username']+filename,typeOfFile)
+                  PredictFlow(msg['username'] + filename, typeOfFile,msg['groupName'])
                 }
               });
             }
-            else
-            {
+            else {
               console.error('文件保存失敗');
-                ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }))
+              ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }))
             }
           }
-          else if(msg['flag']==='ShowBoard')
-          {
-              console.log("correct")
+          else if (msg['flag'] === 'ShowBoard') {
+            db.GetGroupResult(msg['groupName']).then((e:any)=>{
               ws.send(JSON.stringify({
-                items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
+                items:e
               }))
+
+            })
+            
           }
+    
           else {
 
           }
         }
+        
         catch (error) {
           console.log(error)
         }
