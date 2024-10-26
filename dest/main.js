@@ -187,8 +187,8 @@ class DataBase {
             connectionLimit: 10,
             queueLimit: 30,
             waitForConnections: true,
-            acquireTimeout: 10000,
-            idleTimeout: 60000
+            acquireTimeout: 100000000,
+            idleTimeout: 2147483647
         };
         this.pool = mysql_1.default.createPool(this.db_option);
         setInterval(() => {
@@ -200,7 +200,7 @@ class DataBase {
                     console.log('Keep-alive query successful');
                 }
             });
-        }, 30000);
+        }, 1073741823);
     }
     CheckUser(username, password) {
         return __awaiter(this, void 0, void 0, function* () {
