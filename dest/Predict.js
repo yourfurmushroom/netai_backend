@@ -75,49 +75,27 @@ function ExportFolder(filename, typeOfFile) {
 }
 function PredictFlow(filename, typeOfFile, groupName) {
     return __awaiter(this, void 0, void 0, function* () {
-        // try{
-        yield ExportFolder(filename, typeOfFile);
-        console.log("---------------------------------------------------------------after------------------------------------------------------");
-        const studentData = yield GetAllStudentFilePath(`${StudentDataPath}`, filename, DatasetName);
-        console.log(Object.keys(studentData).length);
-        console.log(Object.keys(PredictData).length);
-        let publicAUC = [];
-        let privateAUC = [];
-        for (let i = 0; i < Object.keys(studentData).length; i++) {
-            console.log(`check length: ${PredictData[DatasetName[i]].length}  ,  ${studentData[DatasetName[i]].length}`);
-            // let ppublicData=[]
-            // let pprivateData=[]
-            // let spublicData=[]
-            // let sprivateData=[]
-            // for(let j=0;i<PredictData[DatasetName[i]].length;j++)
-            // {
-            //     if ( j+1 in publicDataIndex[DatasetName[i]])
-            //     {
-            //         ppublicData.push(PredictData[DatasetName[i]][j])
-            //         spublicData.push(studentData[DatasetName[i]][j])
-            //     }
-            //     else
-            //     {
-            //         pprivateData.push(PredictData[DatasetName[i]][j])
-            //         sprivateData.push(studentData[DatasetName[i]][j])
-            //     }
-            // }
-            let [ppublicData, pprivateData] = yield splitArrayByDiscreteIndices(PredictData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
-            let [spublicData, sprivateData] = yield splitArrayByDiscreteIndices(studentData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
-            let resultPublic = yield checkAUC(ppublicData, spublicData);
-            let resultPrivate = yield checkAUC(pprivateData, sprivateData);
-            publicAUC.push(resultPublic);
-            privateAUC.push(resultPrivate);
+        try {
+            yield ExportFolder(filename, typeOfFile);
+            const studentData = yield GetAllStudentFilePath(`${StudentDataPath}`, filename, DatasetName);
+            let publicAUC = [];
+            let privateAUC = [];
+            for (let i = 0; i < Object.keys(studentData).length; i++) {
+                let [ppublicData, pprivateData] = yield splitArrayByDiscreteIndices(PredictData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
+                let [spublicData, sprivateData] = yield splitArrayByDiscreteIndices(studentData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
+                let resultPublic = yield checkAUC(ppublicData, spublicData);
+                let resultPrivate = yield checkAUC(pprivateData, sprivateData);
+                publicAUC.push(resultPublic);
+                privateAUC.push(resultPrivate);
+            }
+            let score = publicAUC.reduce((a, b) => a + b) / publicAUC.length;
+            let privateScore = privateAUC.reduce((a, b) => a + b) / privateAUC.length;
+            AddToDB(score, privateScore, groupName);
+            console.log(score);
         }
-        let score = publicAUC.reduce((a, b) => a + b) / publicAUC.length;
-        let privateScore = privateAUC.reduce((a, b) => a + b) / privateAUC.length;
-        AddToDB(score, privateScore, groupName);
-        console.log(score);
-        // }
-        // catch
-        // {
-        //     console.log("smth wrong")
-        // }
+        catch (_a) {
+            console.log("smth wrong");
+        }
     });
 }
 exports.default = PredictFlow;
@@ -125,7 +103,6 @@ function splitArrayByDiscreteIndices(data, indices) {
     return __awaiter(this, void 0, void 0, function* () {
         const inIndices = data.filter((_, idx) => indices.includes(idx));
         const notInIndices = data.filter((_, idx) => !indices.includes(idx));
-        console.log(`show :${inIndices}`);
         return [inIndices, notInIndices];
     });
 }
@@ -196,7 +173,6 @@ function GetAllFilePath(RootPath, fileName) {
 }
 function GetAllStudentFilePath(RootPath, fileName, dataSetName) {
     return __awaiter(this, void 0, void 0, function* () {
-        // let studentData:dataset[]=[]
         let studentData = [];
         for (let i = 0; i < dataSetName.length; i++) {
             studentData[dataSetName[i]] = ReadData(`${RootPath}/${fileName}/Competition_data/${dataSetName[i]}/y_predict.csv`, true);

@@ -41,15 +41,142 @@ const WebSocket = require("ws");
 const mysql_1 = __importDefault(require("mysql"));
 const path_1 = __importDefault(require("path"));
 const Predict_1 = __importDefault(require("./Predict"));
-function ReadData(path) {
-    const data = fs.readFileSync(path, 'utf-8');
-    return data;
-}
 function ConnectionToServer(port) {
     const wss = new WebSocket.Server({ port: 8888, host: "0.0.0.0" });
     console.log("server start on 8888");
     return wss;
 }
+// export class DataBase {
+//   db: any;
+//   db_option: Object;
+//   constructor() {
+//     this.db_option = {
+//       host: 'localhost',
+//       user: 'root',
+//       password: 'Jet..123@2024!',
+//       database: 'netai_data_scients',
+//     }
+//   }
+//   public async CheckUser(username: string, password: string): Promise<boolean> {
+//     this.db = mysql.createConnection(this.db_option)
+//     return new Promise((resolve, reject) => {
+//       this.db.query(
+//         'SELECT * FROM account WHERE account = ? AND password = ?',
+//         [username, password],
+//         (err: Error, result: any) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//             this.db.end()
+//             resolve(result.length === 1);
+//           }
+//         }
+//       );
+//     });
+//   }
+//   public async ModifyPassword(account: string, newPassword: string) {
+//     this.db = mysql.createConnection(this.db_option)
+//     try {
+//       this.db.query(`UPDATE account set password = '${newPassword}' where account = '${account}'`, (err: Error, result: object) => {
+//         if (err) {
+//           this.db.end()
+//           throw err;
+//         }
+//         else {
+//           this.db.end()
+//           return true;
+//         }
+//       })
+//       return true;
+//     }
+//     catch {
+//       this.db.end()
+//       return false;
+//     }
+//   }
+//   public async GetAllResult() {
+//     return new Promise((resolve, reject) => {
+//       this.db = mysql.createConnection(this.db_option)
+//       this.db.query(
+//         `select * from submissionRecord`,
+//         (err: Error, result: any) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//             if (Object.keys(result).length > 0) {
+//               return resolve(result); 
+//           }
+//         }
+//         })
+//       this.db.end()
+//       this.db=null
+//     });
+//   }
+//   public async GetGroupResult(groupName:string) {
+//     return new Promise((resolve, reject) => {
+//       this.db = mysql.createConnection(this.db_option)
+//       this.db.query(
+//         `select * from submissionRecord where groupName = ?`,
+//         [groupName],
+//         (err: Error, result: any) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//             if (Object.keys(result).length > 0) {
+//               return resolve(result); 
+//           }
+//         }
+//         })
+//       this.db.end()
+//       this.db=null
+//     });
+//   }
+//   public async GetGroupName(account: string) {
+//     this.db = mysql.createConnection(this.db_option)
+//     try {
+//       return new Promise((resolve, reject) => {
+//         this.db.query(`SELECT name FROM groupName WHERE account='${account}'`, (err: Error, result: any) => {
+//           if (err) {
+//             console.log(err);
+//             this.db.end();
+//             return reject(err); 
+//           } else {
+//             this.db.end();
+//             if (result.length > 0) {
+//               let groupname = result.map((row: any) => row.name);
+//               return resolve(groupname); 
+//             } else {
+//               return resolve(undefined); 
+//             }
+//           }
+//         });
+//       });
+//     }
+//     catch (e: any) {
+//       this.db.end()
+//       console.log(e)
+//       return undefined;
+//     }
+//   }
+//   public async InsertScore(publicScore:Number,privateScore:Number,groupName:string)
+//   {
+//     return new Promise((resolve, reject) => {
+//       this.db = mysql.createConnection(this.db_option)
+//       this.db.query(
+//         'insert into submissionRecord (groupName, time, publicAUC, privateAUC) values (?,NOW(),?,?)',
+//         [groupName,publicScore,privateScore],
+//         (err: Error, result: any) => {
+//           if (err) {
+//             reject(err);
+//           } else {
+//           }
+//         }
+//       );
+//       this.db.end()
+//       this.db=null
+//     });
+//   }
+// }
 class DataBase {
     constructor() {
         this.db_option = {
@@ -57,37 +184,28 @@ class DataBase {
             user: 'root',
             password: 'Jet..123@2024!',
             database: 'netai_data_scients',
+            connectionLimit: 10,
+            queueLimit: 30,
+            waitForConnections: true,
+            acquireTimeout: 10000,
+            idleTimeout: 60000
         };
-    }
-    CheckConnection() {
-        this.db.connect((err) => {
-            if (err) {
-                console.error('Database connection error:', err);
-                return;
-            }
-            console.log("Database connected");
-        });
+        this.pool = mysql_1.default.createPool(this.db_option);
+        setInterval(() => {
+            this.pool.query('SELECT 1', (err) => {
+                if (err) {
+                    console.error('Keep-alive query failed:', err);
+                }
+                else {
+                    console.log('Keep-alive query successful');
+                }
+            });
+        }, 30000);
     }
     CheckUser(username, password) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.db = mysql_1.default.createConnection(this.db_option);
             return new Promise((resolve, reject) => {
-                this.db.query('SELECT * FROM account WHERE account = ? AND password = ?', [username, password], (err, result) => {
-                    if (err) {
-                        reject(err);
-                    }
-                    else {
-                        this.db.end();
-                        resolve(result.length === 1);
-                    }
-                });
-            });
-        });
-    }
-    VerifyInDatabase(username) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return new Promise((resolve, reject) => {
-                this.db.query('SELECT * FROM account WHERE userName = ?', [username], (err, result) => {
+                this.pool.query('SELECT * FROM account WHERE account = ? AND password = ?', [username, password], (err, result) => {
                     if (err) {
                         reject(err);
                     }
@@ -96,59 +214,27 @@ class DataBase {
                     }
                 });
             });
-        });
-    }
-    InsertData(username, password) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.db = mysql_1.default.createConnection(this.db_option);
-            const veryfied = yield this.VerifyInDatabase(username);
-            console.log(veryfied);
-            try {
-                if (!veryfied)
-                    this.db.query(`INSERT INTO User VALUES("${username}","${password}")`, (err, result) => {
-                        if (err) {
-                            this.db.end();
-                            throw err;
-                        }
-                        else {
-                            this.db.end();
-                        }
-                    });
-                return veryfied;
-            }
-            catch (_a) {
-                this.db.end();
-                return true;
-            }
         });
     }
     ModifyPassword(account, newPassword) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.db = mysql_1.default.createConnection(this.db_option);
-            try {
-                this.db.query(`UPDATE account set password = '${newPassword}' where account = '${account}'`, (err, result) => {
+            return new Promise((resolve, reject) => {
+                const cmd = `UPDATE account set password = ? WHERE account = ?`;
+                this.pool.query(cmd, [newPassword, account], (err, result) => {
                     if (err) {
-                        this.db.end();
-                        throw err;
+                        return reject(err);
                     }
                     else {
-                        this.db.end();
-                        return true;
+                        return resolve(true);
                     }
                 });
-                return true;
-            }
-            catch (_a) {
-                this.db.end();
-                return false;
-            }
+            });
         });
     }
     GetAllResult() {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                this.db = mysql_1.default.createConnection(this.db_option);
-                this.db.query(`select * from submissionRecord`, (err, result) => {
+                this.pool.query('SELECT * FROM submissionRecord', (err, result) => {
                     if (err) {
                         reject(err);
                     }
@@ -158,75 +244,57 @@ class DataBase {
                         }
                     }
                 });
-                this.db.end();
-                this.db = null;
             });
         });
     }
     GetGroupResult(groupName) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                this.db = mysql_1.default.createConnection(this.db_option);
-                this.db.query(`select * from submissionRecord where groupName = ?`, [groupName], (err, result) => {
+                this.pool.query('SELECT * FROM submissionRecord WHERE groupName = ?', [groupName], (err, result) => {
                     if (err) {
                         reject(err);
                     }
                     else {
-                        console.log(`result is : ${Object.keys(result).length}`);
                         if (Object.keys(result).length > 0) {
                             return resolve(result);
                         }
                     }
                 });
-                this.db.end();
-                this.db = null;
             });
         });
     }
     GetGroupName(account) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.db = mysql_1.default.createConnection(this.db_option);
-            try {
-                return new Promise((resolve, reject) => {
-                    this.db.query(`SELECT name FROM groupName WHERE account='${account}'`, (err, result) => {
-                        if (err) {
-                            console.log(err);
-                            this.db.end();
-                            return reject(err);
+            return new Promise((resolve, reject) => {
+                this.pool.query(`SELECT name FROM groupName WHERE account = ?`, [account], (err, result) => {
+                    if (err) {
+                        console.log(err);
+                        return reject(err);
+                    }
+                    else {
+                        if (result.length > 0) {
+                            let groupname = result.map((row) => row.name);
+                            return resolve(groupname);
                         }
                         else {
-                            this.db.end();
-                            if (result.length > 0) {
-                                let groupname = result.map((row) => row.name);
-                                return resolve(groupname);
-                            }
-                            else {
-                                return resolve(undefined);
-                            }
+                            return resolve(undefined);
                         }
-                    });
+                    }
                 });
-            }
-            catch (e) {
-                this.db.end();
-                console.log(e);
-                return undefined;
-            }
+            });
         });
     }
     InsertScore(publicScore, privateScore, groupName) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                this.db = mysql_1.default.createConnection(this.db_option);
-                this.db.query('insert into submissionRecord (groupName, time, publicAUC, privateAUC) values (?,NOW(),?,?)', [groupName, publicScore, privateScore], (err, result) => {
+                this.pool.query('INSERT INTO submissionRecord (groupName, time, publicAUC, privateAUC) VALUES (?, NOW(), ?, ?)', [groupName, publicScore, privateScore], (err, result) => {
                     if (err) {
                         reject(err);
                     }
                     else {
+                        resolve(result);
                     }
                 });
-                this.db.end();
-                this.db = null;
             });
         });
     }
@@ -235,9 +303,6 @@ exports.DataBase = DataBase;
 function WssListener(wss, db) {
     return __awaiter(this, void 0, void 0, function* () {
         wss.on('connection', (ws) => {
-            // ws.send(JSON.stringify({
-            //   items:['aa','bb','cc','aa','bb','cc','aa','bb','cc']
-            // }))
             console.log("connected");
             try {
                 ws.on('message', (message) => {
@@ -248,7 +313,6 @@ function WssListener(wss, db) {
                                 console.log(e);
                                 if (e) {
                                     db.GetGroupName(msg['username']).then((groupname) => {
-                                        // console.log(db.GetGroupName(msg['username']))
                                         ws.send(JSON.stringify({ messageField: "True", detail: "login Successful", groupName: groupname }));
                                     });
                                 }
@@ -301,8 +365,6 @@ function WssListener(wss, db) {
                                         ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }));
                                     }
                                     else {
-                                        console.log('文件已保存:', filePath);
-                                        console.log(msg['filename']);
                                         ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
                                         (0, Predict_1.default)(msg['username'] + filename, typeOfFile, msg['groupName']);
                                     }
@@ -324,7 +386,6 @@ function WssListener(wss, db) {
                         }
                     }
                     catch (error) {
-                        console.log(error);
                     }
                 });
                 ws.on('close', () => {

@@ -44,35 +44,15 @@ async function ExportFolder(filename:any, typeOfFile:string) {
 
 export default async function PredictFlow(filename:any,typeOfFile:string,groupName:string) 
 {
-    // try{
+    try{
         await ExportFolder(filename,typeOfFile)
-        console.log("---------------------------------------------------------------after------------------------------------------------------")
         const studentData=await GetAllStudentFilePath(`${StudentDataPath}`,filename,DatasetName)
-        console.log(Object.keys(studentData).length)
-        console.log(Object.keys(PredictData).length)
-    
+
         let publicAUC=[]
         let privateAUC=[]
         for(let i=0 ;i<Object.keys(studentData).length;i++)
         {
-            console.log(`check length: ${PredictData[DatasetName[i]].length}  ,  ${studentData[DatasetName[i]].length}`)
-            // let ppublicData=[]
-            // let pprivateData=[]
-            // let spublicData=[]
-            // let sprivateData=[]
-            // for(let j=0;i<PredictData[DatasetName[i]].length;j++)
-            // {
-            //     if ( j+1 in publicDataIndex[DatasetName[i]])
-            //     {
-            //         ppublicData.push(PredictData[DatasetName[i]][j])
-            //         spublicData.push(studentData[DatasetName[i]][j])
-            //     }
-            //     else
-            //     {
-            //         pprivateData.push(PredictData[DatasetName[i]][j])
-            //         sprivateData.push(studentData[DatasetName[i]][j])
-            //     }
-            // }
+            
             let [ppublicData, pprivateData] = await splitArrayByDiscreteIndices(PredictData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
             let [spublicData, sprivateData] = await splitArrayByDiscreteIndices(studentData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
             
@@ -88,17 +68,18 @@ export default async function PredictFlow(filename:any,typeOfFile:string,groupNa
         console.log(score)
 
 
-    // }
-    // catch
-    // {
-    //     console.log("smth wrong")
-    // }
+    }
+    catch
+    {
+        console.log("smth wrong")
+        
+    }
 }
 
 async function splitArrayByDiscreteIndices<T>(data: T[], indices: number[]):Promise<[T[], T[]]> {
     const inIndices = data.filter((_, idx) => indices.includes(idx));
     const notInIndices = data.filter((_, idx) => !indices.includes(idx));
-    console.log(`show :${inIndices}`)
+    
     return [inIndices, notInIndices];
 }
 
@@ -184,7 +165,6 @@ async function GetAllFilePath(RootPath: any, fileName: string) {
 
 async function GetAllStudentFilePath(RootPath: any, fileName: string ,dataSetName:string[]) 
 {
-    // let studentData:dataset[]=[]
     let studentData:any=[]
     for(let i=0;i<dataSetName.length;i++)
     {
