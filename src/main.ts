@@ -22,7 +22,7 @@ export class DataBase {
       user: 'root',
       password: 'Jet..123@2024!',
       database: 'netai_data_scients',
-      connectionLimit: 10,
+      connectionLimit: 100,
       queueLimit: 30,
       waitForConnections: true,
       acquireTimeout: 100000000,
@@ -65,6 +65,7 @@ export class DataBase {
         if (err) {
           return reject(err);
         } else {
+          
           return resolve(true);
         }
       });
@@ -73,7 +74,7 @@ export class DataBase {
 
   public async GetAllResult() {
     return new Promise((resolve, reject) => {
-      this.pool.query('SELECT * FROM submissionRecord', (err, result) => {
+      this.pool.query('SELECT sr.* FROM submissionRecord sr INNER JOIN (SELECT groupName, MAX(time) AS lastTime FROM submissionRecord GROUP BY groupName) AS latest ON sr.groupName = latest.groupName AND sr.time = latest.lastTime;', (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -101,7 +102,7 @@ export class DataBase {
 
   public async GetGroupName(account: string) {
     return new Promise((resolve, reject) => {
-      this.pool.query(`SELECT name FROM groupName WHERE account = ?`, [account], (err, result) => {
+      this.pool.query(`SELECT distinct name FROM groupName WHERE account = ?`, [account], (err, result) => {
         if (err) {
           console.log(err);
           return reject(err);

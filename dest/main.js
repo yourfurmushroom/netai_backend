@@ -46,137 +46,6 @@ function ConnectionToServer(port) {
     console.log("server start on 8888");
     return wss;
 }
-// export class DataBase {
-//   db: any;
-//   db_option: Object;
-//   constructor() {
-//     this.db_option = {
-//       host: 'localhost',
-//       user: 'root',
-//       password: 'Jet..123@2024!',
-//       database: 'netai_data_scients',
-//     }
-//   }
-//   public async CheckUser(username: string, password: string): Promise<boolean> {
-//     this.db = mysql.createConnection(this.db_option)
-//     return new Promise((resolve, reject) => {
-//       this.db.query(
-//         'SELECT * FROM account WHERE account = ? AND password = ?',
-//         [username, password],
-//         (err: Error, result: any) => {
-//           if (err) {
-//             reject(err);
-//           } else {
-//             this.db.end()
-//             resolve(result.length === 1);
-//           }
-//         }
-//       );
-//     });
-//   }
-//   public async ModifyPassword(account: string, newPassword: string) {
-//     this.db = mysql.createConnection(this.db_option)
-//     try {
-//       this.db.query(`UPDATE account set password = '${newPassword}' where account = '${account}'`, (err: Error, result: object) => {
-//         if (err) {
-//           this.db.end()
-//           throw err;
-//         }
-//         else {
-//           this.db.end()
-//           return true;
-//         }
-//       })
-//       return true;
-//     }
-//     catch {
-//       this.db.end()
-//       return false;
-//     }
-//   }
-//   public async GetAllResult() {
-//     return new Promise((resolve, reject) => {
-//       this.db = mysql.createConnection(this.db_option)
-//       this.db.query(
-//         `select * from submissionRecord`,
-//         (err: Error, result: any) => {
-//           if (err) {
-//             reject(err);
-//           } else {
-//             if (Object.keys(result).length > 0) {
-//               return resolve(result); 
-//           }
-//         }
-//         })
-//       this.db.end()
-//       this.db=null
-//     });
-//   }
-//   public async GetGroupResult(groupName:string) {
-//     return new Promise((resolve, reject) => {
-//       this.db = mysql.createConnection(this.db_option)
-//       this.db.query(
-//         `select * from submissionRecord where groupName = ?`,
-//         [groupName],
-//         (err: Error, result: any) => {
-//           if (err) {
-//             reject(err);
-//           } else {
-//             if (Object.keys(result).length > 0) {
-//               return resolve(result); 
-//           }
-//         }
-//         })
-//       this.db.end()
-//       this.db=null
-//     });
-//   }
-//   public async GetGroupName(account: string) {
-//     this.db = mysql.createConnection(this.db_option)
-//     try {
-//       return new Promise((resolve, reject) => {
-//         this.db.query(`SELECT name FROM groupName WHERE account='${account}'`, (err: Error, result: any) => {
-//           if (err) {
-//             console.log(err);
-//             this.db.end();
-//             return reject(err); 
-//           } else {
-//             this.db.end();
-//             if (result.length > 0) {
-//               let groupname = result.map((row: any) => row.name);
-//               return resolve(groupname); 
-//             } else {
-//               return resolve(undefined); 
-//             }
-//           }
-//         });
-//       });
-//     }
-//     catch (e: any) {
-//       this.db.end()
-//       console.log(e)
-//       return undefined;
-//     }
-//   }
-//   public async InsertScore(publicScore:Number,privateScore:Number,groupName:string)
-//   {
-//     return new Promise((resolve, reject) => {
-//       this.db = mysql.createConnection(this.db_option)
-//       this.db.query(
-//         'insert into submissionRecord (groupName, time, publicAUC, privateAUC) values (?,NOW(),?,?)',
-//         [groupName,publicScore,privateScore],
-//         (err: Error, result: any) => {
-//           if (err) {
-//             reject(err);
-//           } else {
-//           }
-//         }
-//       );
-//       this.db.end()
-//       this.db=null
-//     });
-//   }
-// }
 class DataBase {
     constructor() {
         this.db_option = {
@@ -184,7 +53,7 @@ class DataBase {
             user: 'root',
             password: 'Jet..123@2024!',
             database: 'netai_data_scients',
-            connectionLimit: 10,
+            connectionLimit: 100,
             queueLimit: 30,
             waitForConnections: true,
             acquireTimeout: 100000000,
@@ -234,7 +103,7 @@ class DataBase {
     GetAllResult() {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                this.pool.query('SELECT * FROM submissionRecord', (err, result) => {
+                this.pool.query('SELECT sr.* FROM submissionRecord sr INNER JOIN (SELECT groupName, MAX(time) AS lastTime FROM submissionRecord GROUP BY groupName) AS latest ON sr.groupName = latest.groupName AND sr.time = latest.lastTime;', (err, result) => {
                     if (err) {
                         reject(err);
                     }
@@ -266,7 +135,7 @@ class DataBase {
     GetGroupName(account) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
-                this.pool.query(`SELECT name FROM groupName WHERE account = ?`, [account], (err, result) => {
+                this.pool.query(`SELECT distinct name FROM groupName WHERE account = ?`, [account], (err, result) => {
                     if (err) {
                         console.log(err);
                         return reject(err);
