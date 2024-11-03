@@ -74,7 +74,7 @@ export class DataBase {
 
   public async GetAllResult() {
     return new Promise((resolve, reject) => {
-      this.pool.query('SELECT sr.* FROM submissionRecord sr INNER JOIN (SELECT groupName, MAX(time) AS lastTime FROM submissionRecord GROUP BY groupName) AS latest ON sr.groupName = latest.groupName AND sr.time = latest.lastTime;', (err, result) => {
+      this.pool.query('SELECT sr.* FROM submissionRecord sr INNER JOIN (SELECT groupName, MAX(publicAUC) AS AUC, MAX(time) AS latestTime FROM submissionRecord GROUP BY groupName) AS latest ON sr.groupName = latest.groupName AND sr.publicAUC = latest.AUC AND sr.time = latest.latestTime;', (err, result) => {
         if (err) {
           reject(err);
         } else {

@@ -83,10 +83,16 @@ function PredictFlow(filename, typeOfFile, groupName) {
             for (let i = 0; i < Object.keys(studentData).length; i++) {
                 let [ppublicData, pprivateData] = yield splitArrayByDiscreteIndices(PredictData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
                 let [spublicData, sprivateData] = yield splitArrayByDiscreteIndices(studentData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
-                let resultPublic = yield checkAUC(ppublicData, spublicData);
-                let resultPrivate = yield checkAUC(pprivateData, sprivateData);
-                publicAUC.push(resultPublic);
-                privateAUC.push(resultPrivate);
+                // let resultPublic=await checkAUC(ppublicData,spublicData)
+                // let resultPrivate=await checkAUC(pprivateData,sprivateData)
+                // publicAUC.push(resultPublic)
+                // privateAUC.push(resultPrivate)
+                let tprFpr = yield CountAUC(ppublicData, spublicData);
+                let auc = yield calculateAUC(tprFpr);
+                publicAUC.push(auc);
+                tprFpr = yield CountAUC(pprivateData, sprivateData);
+                auc = yield calculateAUC(tprFpr);
+                privateAUC.push(auc);
             }
             let score = publicAUC.reduce((a, b) => a + b) / publicAUC.length;
             let privateScore = privateAUC.reduce((a, b) => a + b) / privateAUC.length;
@@ -139,6 +145,52 @@ function checkAUC(correctAns, predictAns) {
             auc += (fpr - prevFPR) * (tpr + prevTPR) / 2;
             prevTPR = tpr;
             prevFPR = fpr;
+        }
+        return auc;
+    });
+}
+function CountAUC(correctAns, predictAnsProb) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (predictAnsProb.length !== correctAns.length) {
+            throw new Error('Predictions and labels must have the same length');
+        }
+        const thresholds = Array.from(new Set(predictAnsProb)).sort((a, b) => b - a);
+        const tprFpr = [];
+        const thresholdsWithoutRepeat = [...new Set(thresholds)];
+        thresholdsWithoutRepeat.forEach((threshold) => {
+            let tp = 0, fp = 0, fn = 0, tn = 0;
+            for (let i = 0; i < predictAnsProb.length; i++) {
+                if (predictAnsProb[i] > threshold) {
+                    if (correctAns[i] === 1) {
+                        tp++;
+                    }
+                    else {
+                        fp++;
+                    }
+                }
+                else {
+                    if (correctAns[i] === 1) {
+                        fn++;
+                    }
+                    else {
+                        tn++;
+                    }
+                }
+            }
+            const tpr = tp / (tp + fn);
+            const fpr = fp / (fp + tn);
+            tprFpr.push([fpr, tpr]);
+        });
+        return tprFpr;
+    });
+}
+function calculateAUC(tprFpr) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let auc = 0;
+        for (let i = 1; i < tprFpr.length; i++) {
+            const xDiff = tprFpr[i][0] - tprFpr[i - 1][0];
+            const ySum = tprFpr[i][1] + tprFpr[i - 1][1];
+            auc += xDiff * ySum / 2;
         }
         return auc;
     });
