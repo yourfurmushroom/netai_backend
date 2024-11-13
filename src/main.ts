@@ -22,7 +22,7 @@ export class DataBase {
       user: 'root',
       password: 'Jet..123@2024!',
       database: 'netai_data_scients',
-      connectionLimit: 100,
+      connectionLimit: 1000,
       queueLimit: 30,
       waitForConnections: true,
       acquireTimeout: 100000000,
@@ -74,7 +74,7 @@ export class DataBase {
 
   public async GetAllResult() {
     return new Promise((resolve, reject) => {
-      this.pool.query('SELECT sr.* FROM submissionRecord sr INNER JOIN (SELECT groupName, MAX(publicAUC) AS AUC, MAX(time) AS latestTime FROM submissionRecord GROUP BY groupName) AS latest ON sr.groupName = latest.groupName AND sr.publicAUC = latest.AUC AND sr.time = latest.latestTime;', (err, result) => {
+      this.pool.query('WITH RankedSubmissions AS (SELECT sr.*, ROW_NUMBER() OVER (PARTITION BY sr.groupName ORDER BY sr.publicAUC DESC, sr.time DESC) AS rn FROM submissionRecord sr ) SELECT * FROM RankedSubmissions WHERE rn = 1', (err, result) => {
         if (err) {
           reject(err);
         } else {
