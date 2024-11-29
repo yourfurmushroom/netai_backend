@@ -245,7 +245,10 @@ function WssListener(wss, db) {
                                     }
                                     else {
                                         ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
-                                        (0, Predict_1.default)(msg['username'] + filename, typeOfFile, msg['groupName']);
+                                        if (msg['competition'] == '1')
+                                            (0, Predict_1.default)(ws, msg['username'] + filename, typeOfFile, msg['groupName']);
+                                        else if (msg['competition'] == '2')
+                                            ws.send(JSON.stringify({ messageField: "True", detail: "還沒實作 不要玩" }));
                                     }
                                 });
                             }
@@ -260,6 +263,26 @@ function WssListener(wss, db) {
                                     items: e
                                 }));
                             });
+                        }
+                        else if (msg['flag'] === 'ShowOverallBoardCP2') {
+                            // db.GetGroupResult(msg['groupName']).then((e: any) => {
+                            //   ws.send(JSON.stringify({
+                            //     items: e
+                            //   }))
+                            // })
+                            ws.send(JSON.stringify({
+                                items: []
+                            }));
+                        }
+                        else if (msg['flag'] === 'ShowBoardCP2') {
+                            // db.GetGroupResult(msg['groupName']).then((e: any) => {
+                            //   ws.send(JSON.stringify({
+                            //     items: e
+                            //   }))
+                            // })
+                            ws.send(JSON.stringify({
+                                items: []
+                            }));
                         }
                         else {
                         }

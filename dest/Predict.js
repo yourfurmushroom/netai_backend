@@ -73,7 +73,7 @@ function ExportFolder(filename, typeOfFile) {
         }
     });
 }
-function PredictFlow(filename, typeOfFile, groupName) {
+function PredictFlow(ws, filename, typeOfFile, groupName) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             yield ExportFolder(filename, typeOfFile);
@@ -101,6 +101,7 @@ function PredictFlow(filename, typeOfFile, groupName) {
         }
         catch (_a) {
             console.log("smth wrong");
+            ws.send(JSON.stringify({ messageField: "True", detail: "上傳的資料有誤" }));
         }
     });
 }

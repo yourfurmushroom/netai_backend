@@ -10,7 +10,7 @@ const StudentDataPath = '/var/www/server/netai_backend/netai_backend/studentItem
 const DatasetName: string[] = [];
 
 
-const PredictData: any = [];
+const PredictCP2Data: any = [];
 const PredictDataPrivate: any = [];
 const publicDataIndex: any = [];
 const privateDataIndex: any = [];
@@ -42,7 +42,7 @@ async function ExportFolder(filename: any, typeOfFile: string) {
 }
 
 
-export default async function PredictFlow(ws:any,filename: any, typeOfFile: string, groupName: string) {
+export default async function PredictFlowCP2(ws:any,filename: any, typeOfFile: string, groupName: string) {
     try {
         await ExportFolder(filename, typeOfFile)
         const studentData = await GetAllStudentFilePath(`${StudentDataPath}`, filename, DatasetName)
@@ -85,94 +85,10 @@ async function splitArrayByDiscreteIndices<T>(data: T[], indices: number[]): Pro
 
 function AddToDB(publicScore: Number, privateScore: Number, groupName: string) {
     let db = new DataBase()
-    db.InsertScore(publicScore, privateScore, groupName)
+    db.InsertScoreCP2(publicScore, privateScore, groupName)
 
 }
 
-async function checkAUC(correctAns: any, predictAns: any) {
-
-    if (predictAns.length !== correctAns.length) {
-        throw new Error('Predictions and labels must have the same length');
-    }
-
-    let tp = 0;  
-    let fp = 0;  
-    let prevTPR = 0;  
-    let prevFPR = 0;  
-    let auc = 0;
-
-    const P = correctAns.filter((correctAns: any) => correctAns === 1).length;
-    const N = correctAns.filter((correctAns: any) => correctAns === 0).length;
-
-    const combined = predictAns.map((pred: any, idx: any) => ({
-        score: pred,
-        label: correctAns[idx],
-    }));
-
-    combined.sort((a: any, b: any) => b.score - a.score);
-
-    for (let i = 0; i < combined.length; i++) {
-        if (combined[i].label === 1) {
-            tp++;
-        } else {
-            fp++;
-        }
-
-        const tpr = tp / P;  
-        const fpr = fp / N;  
-
-        auc += (fpr - prevFPR) * (tpr + prevTPR) / 2;
-
-        prevTPR = tpr;
-        prevFPR = fpr;
-    }
-
-    return auc;
-}
-
-async function CountAUC(correctAns: any, predictAnsProb: any) {
-    if (predictAnsProb.length !== correctAns.length) {
-        throw new Error('Predictions and labels must have the same length');
-    }
-    
-
-    const thresholds = Array.from(new Set(predictAnsProb)).sort((a: any, b: any) => b - a);
-    const tprFpr: [number, number][] = [];
-
-    thresholds.forEach((threshold: any) => {
-        let tp = 0, fp = 0, fn = 0, tn = 0;
-        for (let i = 0; i < predictAnsProb.length; i++) {
-            if (predictAnsProb[i] > threshold) {
-                if (correctAns[i] === 1) {
-                    tp++;
-                } else {
-                    fp++;
-                }
-            } else {
-                if (correctAns[i] === 1) {
-                    fn++;
-                } else {
-                    tn++;
-                }
-            }
-        }
-        const tpr = tp / (tp + fn);
-        const fpr = fp / (fp + tn);
-        tprFpr.push([fpr, tpr]);
-
-    });
-    return tprFpr;
-}
-
-async function calculateAUC(tprFpr: any) {
-    let auc = 0;
-    for (let i = 1; i < tprFpr.length; i++) {
-        const xDiff = tprFpr[i][0] - tprFpr[i - 1][0];
-        const ySum = tprFpr[i][1] + tprFpr[i - 1][1];
-        auc += xDiff * ySum / 2;
-    }
-    return auc;
-}
 
 
 function Init() {

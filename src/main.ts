@@ -95,9 +95,37 @@ export class DataBase {
     });
   }
 
+  public async GetAllCP2Result() {
+    return new Promise((resolve, reject) => {
+      this.pool.query('WITH RankedSubmissions AS (SELECT sr.*, ROW_NUMBER() OVER (PARTITION BY sr.groupName ORDER BY sr.publicAUC DESC, sr.time DESC) AS rn FROM submissionRecordCP2 sr ) SELECT * FROM RankedSubmissions WHERE rn = 1', (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          if (Object.keys(result).length > 0) {
+            return resolve(result);
+          }
+        }
+      });
+    });
+  }
+
   public async GetGroupResult(groupName: string) {
     return new Promise((resolve, reject) => {
       this.pool.query('SELECT * FROM submissionRecord WHERE groupName = ?', [groupName], (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          if (Object.keys(result).length > 0) {
+            return resolve(result);
+          }
+        }
+      });
+    });
+  }
+
+  public async GetCP2GroupResult(groupName: string) {
+    return new Promise((resolve, reject) => {
+      this.pool.query('SELECT * FROM submissionRecordCP2 WHERE groupName = ?', [groupName], (err, result) => {
         if (err) {
           reject(err);
         } else {
@@ -143,6 +171,23 @@ export class DataBase {
     });
   }
 }
+
+public async InsertScoreCP2(publicScore: Number, privateScore: Number, groupName: string) {
+  return new Promise((resolve, reject) => {
+    this.pool.query(
+      'INSERT INTO submissionRecordCP2 (groupName, time, publicAUC, privateAUC) VALUES (?, NOW(), ?, ?)',
+      [groupName, publicScore, privateScore],
+      (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      }
+    );
+  });
+}
+
 
 async function WssListener(wss: WebSocket.Server, db: any) {
   wss.on('connection', (ws: WebSocket) => {
@@ -216,7 +261,13 @@ async function WssListener(wss: WebSocket.Server, db: any) {
                   ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }))
                 } else {
                   ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }))
-                  PredictFlow(msg['username'] + filename, typeOfFile, msg['groupName'])
+                  
+                  if(msg['competition']=='1')
+                      PredictFlow(ws,msg['username'] + filename, typeOfFile, msg['groupName'])
+                    else if(msg['competition']=='2')
+                      // PredictFlowCP2(ws,msg['username'] + filename, typeOfFile, msg['groupName'])
+                      ws.send(JSON.stringify({ messageField: "True", detail: "還沒實作 不要玩" }))
+                 
                 }
               });
             }
@@ -234,7 +285,22 @@ async function WssListener(wss: WebSocket.Server, db: any) {
             })
 
           }
+          else if (msg['flag'] === 'ShowOverallBoardCP2') {
+            db.GetAllCP2Result(msg['groupName']).then((e: any) => {
+              ws.send(JSON.stringify({
+                items: e
+              }))
 
+            })
+          }
+          else if (msg['flag'] === 'ShowBoardCP2') {
+            db.GetCP2GroupResult(msg['groupName']).then((e: any) => {
+              ws.send(JSON.stringify({
+                items: e
+              }))
+
+            })
+          }
           else {
 
           }
