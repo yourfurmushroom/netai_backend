@@ -94,7 +94,6 @@ async function checkAUC(correctAns: any, predictAns: any) {
         throw new Error('Predictions and labels must have the same length');
     }
 
-
     let tp = 0;  
     let fp = 0;  
     let prevTPR = 0;  

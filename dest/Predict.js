@@ -121,10 +121,10 @@ function checkAUC(correctAns, predictAns) {
         if (predictAns.length !== correctAns.length) {
             throw new Error('Predictions and labels must have the same length');
         }
-        let tp = 0; // 真正例
-        let fp = 0; // 假正例
-        let prevTPR = 0; // 上一個 TPR
-        let prevFPR = 0; // 上一個 FPR
+        let tp = 0;
+        let fp = 0;
+        let prevTPR = 0;
+        let prevFPR = 0;
         let auc = 0;
         const P = correctAns.filter((correctAns) => correctAns === 1).length;
         const N = correctAns.filter((correctAns) => correctAns === 0).length;
@@ -140,8 +140,8 @@ function checkAUC(correctAns, predictAns) {
             else {
                 fp++;
             }
-            const tpr = tp / P; // 真陽率
-            const fpr = fp / N; // 假陽率
+            const tpr = tp / P;
+            const fpr = fp / N;
             auc += (fpr - prevFPR) * (tpr + prevTPR) / 2;
             prevTPR = tpr;
             prevFPR = fpr;
@@ -156,8 +156,7 @@ function CountAUC(correctAns, predictAnsProb) {
         }
         const thresholds = Array.from(new Set(predictAnsProb)).sort((a, b) => b - a);
         const tprFpr = [];
-        const thresholdsWithoutRepeat = [...new Set(thresholds)];
-        thresholdsWithoutRepeat.forEach((threshold) => {
+        thresholds.forEach((threshold) => {
             let tp = 0, fp = 0, fn = 0, tn = 0;
             for (let i = 0; i < predictAnsProb.length; i++) {
                 if (predictAnsProb[i] > threshold) {

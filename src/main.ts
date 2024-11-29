@@ -22,8 +22,8 @@ export class DataBase {
       user: 'root',
       password: 'Jet..123@2024!',
       database: 'netai_data_scients',
-      connectionLimit: 1000,
-      queueLimit: 30,
+      connectionLimit: 10000000,
+      queueLimit: 30000,
       waitForConnections: true,
       acquireTimeout: 100000000,
       idleTimeout: 2147483647
@@ -41,6 +41,15 @@ export class DataBase {
 
   }
 
+  public close() {
+    this.pool.end((err) => {
+        if (err) {
+            console.error('Error closing the database connection pool:', err);
+        } else {
+            console.log('Database connection pool closed.');
+        }
+    });
+}
 
   public async CheckUser(username: string, password: string): Promise<boolean> {
     return new Promise((resolve, reject) => {
@@ -257,6 +266,16 @@ async function main() {
   let dataBase = new DataBase();
 
   WssListener(wss, dataBase);
+
+  process.on('SIGINT', () => {
+    dataBase.close();
+    process.exit();
+});
+
+process.on('SIGTERM', () => {
+    dataBase.close();
+    process.exit();
+});
 }
 
 main();
