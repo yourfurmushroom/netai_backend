@@ -1,19 +1,20 @@
 import * as fs from 'fs';
 import { promisify } from 'util';
 import { DataBase } from './main';
+import path from 'path';
+import { json } from 'stream/consumers';
 const { exec } = require('child_process');
 const promiseExec = promisify(exec);
 
 
-const RootPath = "/var/www/server/netai_backend/netai_backend/predictData"
+const CP2RootPath = "/var/www/server/netai_backend/netai_backend/predictData/DS_Dataset/answer.csv"
 const StudentDataPath = '/var/www/server/netai_backend/netai_backend/studentItems'
-const DatasetName: string[] = [];
+
+const PublicAnswerPair: Record<string, string> = {}
+const PrivateAnswerPair: Record<string, string> = {}
 
 
-const PredictCP2Data: any = [];
-const PredictDataPrivate: any = [];
-const publicDataIndex: any = [];
-const privateDataIndex: any = [];
+const ALLANS = []
 
 async function ExportFolder(filename: any, typeOfFile: string) {
     try {
@@ -42,102 +43,101 @@ async function ExportFolder(filename: any, typeOfFile: string) {
 }
 
 
-export default async function PredictFlowCP2(ws:any,filename: any, typeOfFile: string, groupName: string) {
+function Init() {
+    ReadData(CP2RootPath, PublicAnswerPair, PrivateAnswerPair)
+    console.log('readDataComplete')
+}
+
+export default async function PredictFlowCP2(ws: any, filename: any, typeOfFile: string, groupName: string) {
     try {
         await ExportFolder(filename, typeOfFile)
-        const studentData = await GetAllStudentFilePath(`${StudentDataPath}`, filename, DatasetName)
-
-        let publicAUC = []
-        let privateAUC = []
-        for (let i = 0; i < Object.keys(studentData).length; i++) {
-
-            let [ppublicData, pprivateData] = await splitArrayByDiscreteIndices(PredictData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
-            let [spublicData, sprivateData] = await splitArrayByDiscreteIndices(studentData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
-
-            // let resultPublic=await checkAUC(ppublicData,spublicData)
-            // let resultPrivate=await checkAUC(pprivateData,sprivateData)
-            // publicAUC.push(resultPublic)
-            // privateAUC.push(resultPrivate)
-            let tprFpr = await CountAUC(ppublicData, spublicData);
-            let auc = await calculateAUC(tprFpr);
-            publicAUC.push(auc)
-            tprFpr = await CountAUC(pprivateData, sprivateData);
-            auc = await calculateAUC(tprFpr);
-            privateAUC.push(auc)
+        const studentData: Record<string, string> = {}
+        let currentDirItems = fs.readdirSync(`${StudentDataPath}/${filename}`)
+        currentDirItems.forEach(x=>{
+            if (!fs.statSync(`${StudentDataPath}/${filename}/${x}`).isDirectory()) {
+                ReadStudentData(`${StudentDataPath}/${filename}/${x}`, studentData)
+            }
+        })
+        if (Object.keys(PublicAnswerPair).length + Object.keys(PrivateAnswerPair).length == Object.keys(studentData).length) {
+            let publicAE = await AccumulateAbsoluteError(studentData, PublicAnswerPair)
+            let privateAE = await AccumulateAbsoluteError(studentData, PrivateAnswerPair)
+            let other=await AccumulateAbsoluteErrorNon(studentData,PublicAnswerPair,PrivateAnswerPair)
+            if(isNaN(publicAE) || isNaN(privateAE))
+            {
+                ws.send(JSON.stringify({ messageField: "True", detail: "上傳的資料有誤" }))
+                return
+            }
+            AddToDB(publicAE+other,privateAE+other,groupName)
+            ws.send(JSON.stringify({ messageField: "True", detail: `計算成功，本次上傳結果為：${publicAE+other}` }))
         }
-        let score = publicAUC.reduce((a, b) => a + b) / publicAUC.length
-        let privateScore = privateAUC.reduce((a, b) => a + b) / privateAUC.length
-        AddToDB(score, privateScore, groupName)
-        console.log(score)
+        else {
+            console.log("smth wrong data")
+            ws.send(JSON.stringify({ messageField: "True", detail: "上傳的資料有誤" }))
+        }
     }
     catch {
         console.log("smth wrong")
-        ws.send(JSON.stringify({ messageField: "True", detail: "上傳的資料有誤" }))
+         ws.send(JSON.stringify({ messageField: "True", detail: "上傳的資料有誤" }))
     }
-}
-
-async function splitArrayByDiscreteIndices<T>(data: T[], indices: number[]): Promise<[T[], T[]]> {
-    const inIndices = data.filter((_, idx) => indices.includes(idx));
-    const notInIndices = data.filter((_, idx) => !indices.includes(idx));
-
-    return [inIndices, notInIndices];
 }
 
 function AddToDB(publicScore: Number, privateScore: Number, groupName: string) {
+    
     let db = new DataBase()
     db.InsertScoreCP2(publicScore, privateScore, groupName)
-
 }
 
-
-
-function Init() {
-    try {
-        GetAllFilePath(`${RootPath}/all`, "")
-        console.log('read dataset complete')
+async function AccumulateAbsoluteError(studentData: Record<string, string>, answer: Record<string, string>) {
+    let totalAE = 0
+    for (const id in studentData) {
+        if (id in answer) {
+            totalAE += Math.abs(parseFloat(studentData[id]) - parseFloat(answer[id]));
+        }
     }
-    catch {
-        console.log('read dataset error')
-    }
+    return totalAE
 }
 
-async function GetAllFilePath(RootPath: any, fileName: string) {
+async function AccumulateAbsoluteErrorNon(studentData: Record<string, string>, answerPublic: Record<string, string>,answerPrivate:Record<string,string>) {
+    let totalAE = 0
+    for (const id in studentData) {
+        if (!(id in answerPublic || id in answerPrivate)) {
+            totalAE += Math.abs(parseFloat(studentData[id]));
+        }
+    }
+    return totalAE
+}
 
-    let currentDirItems = fs.readdirSync(RootPath)
-    currentDirItems.forEach(item => {
-        if (fs.statSync(`${RootPath}/${item}`).isDirectory()) {
-            GetAllFilePath(`${RootPath}/${item}`, item)
+function ReadData(path: string, publicField: Record<string, string>, privateField: Record<string, string>) {
+    let file = fs.readFileSync(path, { encoding: "utf-8" })
+    const stringArray = file.split('\n').map(item => item.trim());
+    stringArray.shift()
+    stringArray.pop()
+    const allDataField: [string, string, string][] = stringArray.map(x => x.split(',').map(item => item.trim()) as [string, string, string])
+    allDataField.forEach(element => {
+        if (element[2] === '1') {
+            privateField[element[0]] = element[1];
         }
         else {
-            if (fs.existsSync(`${RootPath}/y_test.csv`) && !PredictData.hasOwnProperty(fileName)) {
-                PredictData[fileName] = ReadData(`${RootPath}/y_test.csv`, true)
-                publicDataIndex[fileName] = ReadData(`${RootPath}/public.txt`, false)
-                privateDataIndex[fileName] = ReadData(`${RootPath}/private.txt`, false)
-                DatasetName.push(fileName)
-                return
-            }
+            publicField[element[0]] = element[1];
         }
     });
-}
-
-async function GetAllStudentFilePath(RootPath: any, fileName: string, dataSetName: string[]) {
-    let studentData: any = []
-    for (let i = 0; i < dataSetName.length; i++) {
-        studentData[dataSetName[i]] = ReadData(`${RootPath}/${fileName}/Competition_data/${dataSetName[i]}/y_predict.csv`, true)
-    }
-    return studentData
 
 }
 
-
-function ReadData(PATH: string, isCSV: boolean) {
-    let file = fs.readFileSync(PATH, { encoding: "utf-8" })
-    const stringArray = file.split('\n').map(item => item.trim());
-
-    if (isCSV)
+async function ReadStudentData(path: string, studentData: Record<string, string>) {
+    try {
+        let file = fs.readFileSync(path, { encoding: "utf-8" })
+        const stringArray = file.split('\n').map(item => item.trim());
         stringArray.shift()
-    const intArray = stringArray.map(Number);
-    return intArray;
+        stringArray.pop()
+        const allDataField: [string, string, string][] = stringArray.map(x => x.split(',').map(item => item.trim()) as [string, string, string])
+        allDataField.forEach(element => {
+            studentData[element[0]] = element[1];
+        });
+    }
+    catch {
+        console.log("asd")
+    }
 }
 
 

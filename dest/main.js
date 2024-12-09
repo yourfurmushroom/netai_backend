@@ -40,7 +40,7 @@ const fs = __importStar(require("fs"));
 const WebSocket = require("ws");
 const mysql_1 = __importDefault(require("mysql"));
 const path_1 = __importDefault(require("path"));
-const Predict_1 = __importDefault(require("./Predict"));
+const PredictCP2_1 = __importDefault(require("./PredictCP2"));
 function ConnectionToServer(port) {
     const wss = new WebSocket.Server({ port: 8888, host: "0.0.0.0" });
     console.log("server start on 8888");
@@ -126,6 +126,40 @@ class DataBase {
             });
         });
     }
+    GetAllPrivateResult() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.pool.query('WITH RankedSubmissions AS (SELECT sr.*, ROW_NUMBER() OVER (PARTITION BY sr.groupName ORDER BY sr.time DESC) AS rn FROM submissionRecord sr) SELECT * FROM RankedSubmissions WHERE rn = 1;', (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        if (Object.keys(result).length > 0) {
+                            return resolve(result);
+                        }
+                    }
+                });
+            });
+        });
+    }
+    GetAllCP2Result() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.pool.query('WITH RankedSubmissions AS (SELECT sr.*, ROW_NUMBER() OVER (PARTITION BY sr.groupName ORDER BY sr.publicAUC ASC, sr.time ASC) AS rn FROM submissionRecordCP2 sr) SELECT * FROM RankedSubmissions WHERE rn = 1 ORDER BY publicAUC ASC;', (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        if (Object.keys(result).length > 0) {
+                            return resolve(result);
+                        }
+                        else
+                            return resolve([]);
+                    }
+                });
+            });
+        });
+    }
     GetGroupResult(groupName) {
         return __awaiter(this, void 0, void 0, function* () {
             return new Promise((resolve, reject) => {
@@ -137,6 +171,24 @@ class DataBase {
                         if (Object.keys(result).length > 0) {
                             return resolve(result);
                         }
+                    }
+                });
+            });
+        });
+    }
+    GetCP2GroupResult(groupName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.pool.query('SELECT * FROM submissionRecordCP2 WHERE groupName = ?', [groupName], (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        if (Object.keys(result).length > 0) {
+                            return resolve(result);
+                        }
+                        else
+                            return resolve([]);
                     }
                 });
             });
@@ -177,6 +229,20 @@ class DataBase {
             });
         });
     }
+    InsertScoreCP2(publicScore, privateScore, groupName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.pool.query('INSERT INTO submissionRecordCP2 (groupName, time, publicAUC, privateAUC) VALUES (?, NOW(), ?, ?)', [groupName, publicScore, privateScore], (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve(result);
+                    }
+                });
+            });
+        });
+    }
 }
 exports.DataBase = DataBase;
 function WssListener(wss, db) {
@@ -200,7 +266,7 @@ function WssListener(wss, db) {
                             });
                         }
                         else if (msg['flag'] === 'ShowOverallBoard') {
-                            db.GetAllResult().then((e) => {
+                            db.GetAllPrivateResult().then((e) => {
                                 ws.send(JSON.stringify({
                                     items: e
                                 }));
@@ -233,28 +299,32 @@ function WssListener(wss, db) {
                             }
                         }
                         else if (msg['flag'] === 'Upload') {
-                            let tmp = msg['filename'].split('.');
-                            let typeOfFile = tmp.pop();
-                            if (typeOfFile === 'rar' || typeOfFile === 'zip' || typeOfFile === '7z') {
-                                const filename = `_${Date.now()}`;
-                                const filePath = path_1.default.join(__dirname, '../studentItems', msg['username'] + `${filename}.${typeOfFile}`);
-                                fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
-                                    if (err) {
-                                        console.error('文件保存失敗', err);
-                                        ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }));
-                                    }
-                                    else {
-                                        ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
-                                        if (msg['competition'] == '1')
-                                            (0, Predict_1.default)(ws, msg['username'] + filename, typeOfFile, msg['groupName']);
-                                        else if (msg['competition'] == '2')
-                                            ws.send(JSON.stringify({ messageField: "True", detail: "還沒實作 不要玩" }));
-                                    }
-                                });
+                            if (msg['competition'] == '1') {
+                                ws.send(JSON.stringify({ messageField: "False", detail: "CP1已結束 謝謝大家" }));
                             }
-                            else {
-                                console.error('文件保存失敗');
-                                ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }));
+                            else if (msg['competition'] == '2') {
+                                let tmp = msg['filename'].split('.');
+                                let typeOfFile = tmp.pop();
+                                if (typeOfFile === 'rar' || typeOfFile === 'zip' || typeOfFile === '7z') {
+                                    const filename = `_${Date.now()}`;
+                                    const filePath = path_1.default.join(__dirname, '../studentItems', msg['username'] + `${filename}.${typeOfFile}`);
+                                    fs.writeFile(filePath, Buffer.from(msg['filebuffer'], 'base64'), (err) => {
+                                        if (err) {
+                                            console.error('文件保存失敗', err);
+                                            ws.send(JSON.stringify({ messageField: "False", detail: "資料上傳失敗" }));
+                                        }
+                                        else {
+                                            ws.send(JSON.stringify({ messageField: "True", detail: "資料上傳成功", filename: msg['filename'] }));
+                                            // PredictFlow(ws, msg['username'] + filename, typeOfFile, msg['groupName'])
+                                            (0, PredictCP2_1.default)(ws, msg['username'] + filename, typeOfFile, msg['groupName']);
+                                        }
+                                    });
+                                }
+                                else {
+                                    console.error('文件保存失敗');
+                                    ws.send(JSON.stringify({ messageField: "False", detail: "檔案格式不正確，必須為下列各式：\nrar,zip,7z" }));
+                                }
+                                // ws.send(JSON.stringify({ messageField: "True", detail: "還沒實作 不要玩" }))
                             }
                         }
                         else if (msg['flag'] === 'ShowBoard') {
@@ -265,24 +335,18 @@ function WssListener(wss, db) {
                             });
                         }
                         else if (msg['flag'] === 'ShowOverallBoardCP2') {
-                            // db.GetGroupResult(msg['groupName']).then((e: any) => {
-                            //   ws.send(JSON.stringify({
-                            //     items: e
-                            //   }))
-                            // })
-                            ws.send(JSON.stringify({
-                                items: []
-                            }));
+                            db.GetAllCP2Result(msg['groupName']).then((e) => {
+                                ws.send(JSON.stringify({
+                                    items: e
+                                }));
+                            });
                         }
                         else if (msg['flag'] === 'ShowBoardCP2') {
-                            // db.GetGroupResult(msg['groupName']).then((e: any) => {
-                            //   ws.send(JSON.stringify({
-                            //     items: e
-                            //   }))
-                            // })
-                            ws.send(JSON.stringify({
-                                items: []
-                            }));
+                            db.GetCP2GroupResult(msg['groupName']).then((e) => {
+                                ws.send(JSON.stringify({
+                                    items: e
+                                }));
+                            });
                         }
                         else {
                         }

@@ -226,3 +226,35 @@ function ReadData(PATH: string, isCSV: boolean) {
 
 
 Init()
+
+// async function PredictFlow2(filename: any, groupName: string) {
+    
+//         const studentData = await GetAllStudentFilePath(``, filename, DatasetName)
+
+//         let publicAUC = []
+//         let privateAUC = []
+//         for (let i = 0; i < Object.keys(studentData).length; i++) {
+
+//             let [ppublicData, pprivateData] = await splitArrayByDiscreteIndices(PredictData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
+//             let [spublicData, sprivateData] = await splitArrayByDiscreteIndices(studentData[DatasetName[i]], publicDataIndex[DatasetName[i]]);
+
+//             // let resultPublic=await checkAUC(ppublicData,spublicData)
+//             // let resultPrivate=await checkAUC(pprivateData,sprivateData)
+//             // publicAUC.push(resultPublic)
+//             // privateAUC.push(resultPrivate)
+//             let tprFpr = await CountAUC(ppublicData, spublicData);
+//             let auc = await calculateAUC(tprFpr);
+//             publicAUC.push(auc)
+//             tprFpr = await CountAUC(pprivateData, sprivateData);
+//             auc = await calculateAUC(tprFpr);
+//             privateAUC.push(auc)
+//         }
+//         let score = publicAUC.reduce((a, b) => a + b) / publicAUC.length
+//         let privateScore = privateAUC.reduce((a, b) => a + b) / privateAUC.length
+//         AddToDB(score, privateScore, groupName)
+//         console.log(score)
+    
+    
+// }
+
+// PredictFlow2('/var/www/server/netai_backend/netai_backend/studentItems/DS106_1732981303056','SpringRain')
